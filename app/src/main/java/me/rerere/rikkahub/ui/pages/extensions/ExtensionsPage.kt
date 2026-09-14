@@ -28,7 +28,7 @@ import me.rerere.rikkahub.ui.context.LocalNavController
 import me.rerere.rikkahub.ui.theme.CustomColors
 import me.rerere.rikkahub.utils.plus
 
-private const val WHALE_WIDGET_URL = "https://raw.githubusercontent.com/edngeng-debug/rikkahub/feature/deepseek-whale-widget/docs/whale-widget.html"
+private const val WHALE_WIDGET_URL = "file:///android_asset/whale-widget.html"
 
 @Composable
 fun ExtensionsPage() {
