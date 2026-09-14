@@ -6,7 +6,6 @@ import android.content.Intent
 import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.PixelFormat
-import android.net.Uri
 import android.os.Build
 import android.os.IBinder
 import android.provider.Settings
@@ -23,6 +22,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -31,11 +31,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.math.abs
 
-/**
- * Mobile floating pet based on the interaction model of the upstream DeepSeek whale widget.
- * The pet is deliberately implemented as a real overlay rather than a WebView so it can
- * remain above RikkaHub and other apps.
- */
+/** Mobile floating pet based on the interaction model of the upstream DeepSeek whale widget. */
 class DeepSeekPetService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var refreshJob: Job? = null
@@ -73,7 +69,6 @@ class DeepSeekPetService : Service() {
     private fun showPet() {
         if (root != null) return
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
-
         val container = FrameLayout(this).apply {
             setBackgroundColor(Color.TRANSPARENT)
             clipChildren = false
@@ -100,14 +95,9 @@ class DeepSeekPetService : Service() {
             setBackgroundColor(Color.argb(190, 32, 49, 112))
             isVisible = false
         }
-
         container.addView(image, FrameLayout.LayoutParams(190, 190, Gravity.BOTTOM or Gravity.END))
-        container.addView(bubbleView, FrameLayout.LayoutParams(190, 100, Gravity.TOP or Gravity.START).apply {
-            rightMargin = 8
-        })
-        container.addView(balanceView, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.END).apply {
-            topMargin = 8
-        })
+        container.addView(bubbleView, FrameLayout.LayoutParams(190, 100, Gravity.TOP or Gravity.START))
+        container.addView(balanceView, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.END).apply { topMargin = 8 })
 
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -118,21 +108,18 @@ class DeepSeekPetService : Service() {
             210,
             250,
             type,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
             x = 24
             y = 280
         }
-
         windowManager?.addView(container, params)
         root = container
         pet = image
         bubble = bubbleView
         balanceText = balanceView
-
         loadPetImage()
         showBubble("你好呀～点我一下试试！", 2800)
     }
@@ -161,12 +148,8 @@ class DeepSeekPetService : Service() {
                 return true
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                view.animate()
-                    .scaleX(1.06f)
-                    .scaleY(1.06f)
-                    .setDuration(130)
-                    .setInterpolator(OvershootInterpolator(2f))
-                    .withEndAction {
+                view.animate().scaleX(1.06f).scaleY(1.06f).setDuration(130)
+                    .setInterpolator(OvershootInterpolator(2f)).withEndAction {
                         view.animate().scaleX(1f).scaleY(1f).setDuration(160).start()
                     }.start()
                 if (!moved) {
@@ -180,12 +163,8 @@ class DeepSeekPetService : Service() {
     }
 
     private fun randomPhrase(): String = listOf(
-        "欸！你戳我干嘛～",
-        "轻一点啦……",
-        "捏一下就跑？",
-        "今天也要好好聊天哦！",
-        "DeepSeek 娘在线中～",
-        "余额帮你看着呢！"
+        "欸！你戳我干嘛～", "轻一点啦……", "捏一下就跑？",
+        "今天也要好好聊天哦！", "DeepSeek 娘在线中～", "余额帮你看着呢！"
     ).random()
 
     private fun showBubble(text: String, duration: Long) {
@@ -201,11 +180,10 @@ class DeepSeekPetService : Service() {
 
     private fun loadPetImage() {
         scope.launch(Dispatchers.IO) {
-            runCatching {
-                URL(IMAGE_URL).openStream().use { BitmapFactory.decodeStream(it) }
-            }.getOrNull()?.let { bitmap ->
-                launch(Dispatchers.Main) { pet?.setImageBitmap(bitmap) }
-            }
+            runCatching { URL(IMAGE_URL).openStream().use { BitmapFactory.decodeStream(it) } }
+                .getOrNull()?.let { bitmap ->
+                    launch(Dispatchers.Main) { pet?.setImageBitmap(bitmap) }
+                }
         }
     }
 
@@ -235,7 +213,6 @@ class DeepSeekPetService : Service() {
                 }
                 connection.inputStream.bufferedReader().use { it.readText() }.also { connection.disconnect() }
             }.getOrNull() ?: return@launch
-
             val balance = runCatching {
                 val json = JSONObject(result)
                 val infos = json.optJSONArray("balance_infos") ?: return@runCatching null
@@ -252,7 +229,6 @@ class DeepSeekPetService : Service() {
                 }
                 selected
             }.getOrNull() ?: return@launch
-
             launch(Dispatchers.Main) {
                 balanceText?.text = "¥ %.2f".format(balance)
                 balanceText?.isVisible = true
@@ -277,18 +253,14 @@ class DeepSeekPetService : Service() {
 
         fun start(context: Context, apiKey: String) {
             if (!Settings.canDrawOverlays(context)) return
-            context.startService(
-                Intent(context, DeepSeekPetService::class.java).apply {
-                    action = ACTION_START
-                    putExtra(EXTRA_KEY, apiKey)
-                }
-            )
+            context.startService(Intent(context, DeepSeekPetService::class.java).apply {
+                action = ACTION_START
+                putExtra(EXTRA_KEY, apiKey)
+            })
         }
 
         fun stop(context: Context) {
-            context.startService(Intent(context, DeepSeekPetService::class.java).apply {
-                action = ACTION_STOP
-            })
+            context.startService(Intent(context, DeepSeekPetService::class.java).apply { action = ACTION_STOP })
         }
     }
 }
