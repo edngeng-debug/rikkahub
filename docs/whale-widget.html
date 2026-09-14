@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>小鲸鱼记账</title>
+<style>
+body{margin:0;background:#101114;color:#f5f5f5;font-family:system-ui,sans-serif}main{min-height:100vh;padding:18px;box-sizing:border-box}.card{background:#1b1d22;border:1px solid #30333b;border-radius:20px;padding:16px;margin-bottom:14px}.hero{display:flex;align-items:center;gap:14px}.whale{width:70px;height:70px;border-radius:22px;background:#252a35;display:grid;place-items:center;font-size:44px}.title{font-size:20px;font-weight:700}.sub,.hint{color:#aeb3bf;font-size:13px;margin-top:4px}.row{display:flex;justify-content:space-between;padding:10px 0}.label{color:#aeb3bf}.value{font-weight:700;font-variant-numeric:tabular-nums}input,button{width:100%;box-sizing:border-box;padding:13px;border-radius:14px;font-size:15px}input{background:#121419;color:#fff;border:1px solid #3a3e48;margin:8px 0}button{border:0;background:#6ea8fe;color:#07101e;font-weight:700;margin-top:8px}.secondary{background:#292d36;color:#fff}.status{font-size:12px;margin-top:10px}.ok{color:#78d89a}.err{color:#ff8d8d}
+</style>
+</head>
+<body><main>
+<div class="card hero"><div class="whale">🐋</div><div><div class="title">小鲸鱼记账</div><div class="sub">RikkaHub 移动版 · DeepSeek</div></div></div>
+<div class="card"><div class="row"><span class="label">账户余额</span><span class="value" id="balance">—</span></div><div class="row"><span class="label">今日已用</span><span class="value" id="today">—</span></div><div class="row"><span class="label">上次刷新</span><span class="value" id="time">—</span></div></div>
+<div class="card"><b>DeepSeek API Key</b><input id="key" type="password" placeholder="sk-..."><button onclick="saveAndRefresh()">保存并刷新</button><button class="secondary" onclick="refresh()">只刷新余额</button><div id="status" class="status hint">密钥仅保存在本机 WebView。</div></div>
+<div class="hint">今日已用采用本机观察到的余额下降额累计；首次刷新只建立基准，不会把历史余额差算进今天。</div>
+</main>
+<script>
+const K='rikkahub_whale_key',B='rikkahub_whale_balance',D='rikkahub_whale_day',U='rikkahub_whale_today';
+const key=document.getElementById('key');key.value=localStorage.getItem(K)||'';
+const money=n=>Number.isFinite(n)?'¥'+n.toFixed(4):'—';
+function status(t,e=false){const x=document.getElementById('status');x.textContent=t;x.className='status '+(e?'err':'ok')}
+function render(){const day=new Date().toLocaleDateString('en-CA');if(localStorage.getItem(D)!==day){localStorage.setItem(D,day);localStorage.setItem(U,'0')}const b=Number(localStorage.getItem(B));document.getElementById('balance').textContent=money(b);document.getElementById('today').textContent=money(Number(localStorage.getItem(U)||0));}
+async function refresh(){const k=localStorage.getItem(K)||key.value.trim();if(!k){status('请先填写 API Key',true);return}status('正在刷新…');try{const r=await fetch('https://api.deepseek.com/user/balance',{headers:{Authorization:'Bearer '+k,Accept:'application/json'}});if(!r.ok)throw Error('HTTP '+r.status);const j=await r.json();const infos=j.balance_infos||[];const c=infos.find(x=>x.currency==='CNY')||infos[0];const now=Number(c&&c.total_balance);if(!Number.isFinite(now))throw Error('接口未返回余额');const old=Number(localStorage.getItem(B));if(Number.isFinite(old)&&now<old)localStorage.setItem(U,String(Number(localStorage.getItem(U)||0)+(old-now)));localStorage.setItem(B,String(now));localStorage.setItem(D,new Date().toLocaleDateString('en-CA'));document.getElementById('time').textContent=new Date().toLocaleTimeString();render();status('刷新成功')}catch(e){status('刷新失败：'+e.message,true);render()}}
+function saveAndRefresh(){localStorage.setItem(K,key.value.trim());refresh()}render();
+</script></body></html>
