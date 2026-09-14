@@ -43,34 +43,56 @@ import me.rerere.rikkahub.ui.components.webview.WebViewContentCache
 import me.rerere.rikkahub.ui.components.webview.rememberWebViewState
 import me.rerere.rikkahub.ui.theme.JetbrainsMono
 
+private const val BUNDLED_WHALE_WIDGET_URL = "rikkahub://whale-widget"
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WebViewPage(url: String, contentId: String) {
     val context = LocalContext.current
-    val state = if (url.isNotEmpty()) {
-        rememberWebViewState(
-            url = url,
-            settings = {
-                builtInZoomControls = true
-                displayZoomControls = false
-                useWideViewPort = true
-                loadWithOverviewMode = true
-            })
-    } else {
-        val content = remember(contentId) {
-            WebViewContentCache.load(context.cacheDir, contentId).orEmpty()
-        }
-        rememberWebViewState(
-            data = content,
-            baseUrl = WEB_VIEW_BASE_URL,
-            mimeType = "text/html",
-            settings = {
-                builtInZoomControls = true
-                displayZoomControls = false
-                useWideViewPort = true
-                loadWithOverviewMode = true
+    val state = when {
+        url == BUNDLED_WHALE_WIDGET_URL -> {
+            val content = remember {
+                context.assets.open("whale-widget.html").bufferedReader().use { it.readText() }
             }
-        )
+            rememberWebViewState(
+                data = content,
+                baseUrl = "https://api.deepseek.com/",
+                mimeType = "text/html",
+                settings = {
+                    builtInZoomControls = true
+                    displayZoomControls = false
+                    useWideViewPort = true
+                    loadWithOverviewMode = true
+                }
+            )
+        }
+        url.isNotEmpty() -> {
+            rememberWebViewState(
+                url = url,
+                settings = {
+                    builtInZoomControls = true
+                    displayZoomControls = false
+                    useWideViewPort = true
+                    loadWithOverviewMode = true
+                }
+            )
+        }
+        else -> {
+            val content = remember(contentId) {
+                WebViewContentCache.load(context.cacheDir, contentId).orEmpty()
+            }
+            rememberWebViewState(
+                data = content,
+                baseUrl = WEB_VIEW_BASE_URL,
+                mimeType = "text/html",
+                settings = {
+                    builtInZoomControls = true
+                    displayZoomControls = false
+                    useWideViewPort = true
+                    loadWithOverviewMode = true
+                }
+            )
+        }
     }
 
     var showDropdown by remember { mutableStateOf(false) }
@@ -122,9 +144,9 @@ fun WebViewPage(url: String, contentId: String) {
                                 leadingIcon = { Icon(HugeIcons.Earth, contentDescription = null) },
                                 onClick = {
                                     showDropdown = false
-                                    state.currentUrl?.let { url ->
-                                        if (url.isNotBlank()) {
-                                            urlHandler.openUri(url)
+                                    state.currentUrl?.let { currentUrl ->
+                                        if (currentUrl.isNotBlank() && currentUrl != BUNDLED_WHALE_WIDGET_URL) {
+                                            urlHandler.openUri(currentUrl)
                                         }
                                     }
                                 }
