@@ -18,7 +18,6 @@ import androidx.compose.ui.unit.dp
 import me.rerere.hugeicons.HugeIcons
 import me.rerere.rikkahub.R
 import me.rerere.hugeicons.stroke.Book03
-import me.rerere.hugeicons.stroke.File02
 import me.rerere.hugeicons.stroke.Folder01
 import me.rerere.hugeicons.stroke.Puzzle
 import me.rerere.hugeicons.stroke.Zap
@@ -28,6 +27,8 @@ import me.rerere.rikkahub.ui.components.ui.CardGroup
 import me.rerere.rikkahub.ui.context.LocalNavController
 import me.rerere.rikkahub.ui.theme.CustomColors
 import me.rerere.rikkahub.utils.plus
+
+private const val WHALE_WIDGET_URL = "https://raw.githubusercontent.com/edngeng-debug/rikkahub/feature/deepseek-whale-widget/docs/whale-widget.html"
 
 @Composable
 fun ExtensionsPage() {
@@ -57,7 +58,7 @@ fun ExtensionsPage() {
                     title = { Text(stringResource(R.string.extensions_page_section_extensions)) },
                 ) {
                     item(
-                        onClick = { navController.navigate(Screen.WebView("https://rikkahub.local/whale-widget")) },
+                        onClick = { navController.navigate(Screen.WebView(WHALE_WIDGET_URL)) },
                         leadingContent = { Icon(HugeIcons.Zap, null) },
                         headlineContent = { Text("小鲸鱼记账") },
                         supportingContent = { Text("DeepSeek 余额与今日用量") },
