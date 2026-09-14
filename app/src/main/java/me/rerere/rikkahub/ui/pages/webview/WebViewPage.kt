@@ -35,6 +35,7 @@ import me.rerere.hugeicons.stroke.ArrowRight01
 import me.rerere.hugeicons.stroke.Bug01
 import me.rerere.hugeicons.stroke.Earth
 import me.rerere.hugeicons.stroke.Refresh01
+import me.rerere.rikkahub.data.ai.WhaleUsageStore
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.components.webview.WEB_VIEW_BASE_URL
 import me.rerere.rikkahub.ui.components.webview.WebView
@@ -47,9 +48,11 @@ import org.json.JSONObject
 
 private const val BUNDLED_WHALE_WIDGET_URL = "rikkahub://whale-widget"
 
-private fun loadWhaleHtml(context: Context, apiKey: String): String {
+private fun loadWhaleHtml(context: Context, apiKey: String, usageJson: String): String {
     val html = context.assets.open("whale-widget.html").bufferedReader().use { it.readText() }
-    return html.replace("__RIKKAHUB_KEY__", JSONObject.quote(apiKey))
+    return html
+        .replace("__RIKKAHUB_KEY__", JSONObject.quote(apiKey))
+        .replace("__RIKKAHUB_USAGE__", usageJson)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -61,8 +64,13 @@ fun WebViewPage(url: String, contentId: String) {
     val whaleKey = remember(settings.providers) {
         settings.providers.firstOrNull { it.name == "DeepSeek" }?.apiKey.orEmpty()
     }
+    val whaleUsage = remember(isWhale) {
+        if (isWhale) WhaleUsageStore.snapshot(context) else "{}"
+    }
     val state = if (isWhale) {
-        val content = remember(whaleKey) { loadWhaleHtml(context, whaleKey) }
+        val content = remember(whaleKey, whaleUsage) {
+            loadWhaleHtml(context, whaleKey, whaleUsage)
+        }
         rememberWebViewState(
             data = content,
             baseUrl = "https://api.deepseek.com/",
