@@ -45,7 +45,7 @@ jobs:
           from pathlib import Path
           p = Path('app/src/main/java/me/rerere/rikkahub/ui/pages/setting/SettingPage.kt')
           s = p.read_text()
-          marker = 'import me.rerere.rikkahub.ui.context.LocalNavController\n'
+          marker = 'import org.koin.compose.koinInject\n'
           s = s.replace(marker, marker + '\nprivate const val WHALE_WIDGET_URL = "rikkahub://whale-widget"\n', 1)
           needle = '''                    item(\n                        onClick = { navController.navigate(Screen.Extensions) },\n                        leadingContent = { Icon(HugeIcons.Package, null) },\n                        supportingContent = { Text(stringResource(R.string.setting_page_extensions_desc)) },\n                        headlineContent = { Text(stringResource(R.string.setting_page_extensions)) },\n                    )\n'''
           addition = needle + '''                    item(\n                        onClick = { navController.navigate(Screen.WebView(WHALE_WIDGET_URL)) },\n                        leadingContent = { Text("🐳", style = MaterialTheme.typography.titleLarge) },\n                        supportingContent = { Text("DeepSeek 余额、今日消耗与 RikkaHub 实际 Token 用量") },\n                        headlineContent = { Text("小鲸鱼记账") },\n                    )\n'''
