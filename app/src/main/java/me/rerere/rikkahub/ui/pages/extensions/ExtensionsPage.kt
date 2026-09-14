@@ -1,5 +1,8 @@
 package me.rerere.rikkahub.ui.pages.extensions
 
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,18 +16,22 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import me.rerere.ai.provider.ProviderSetting
 import me.rerere.hugeicons.HugeIcons
-import me.rerere.rikkahub.R
 import me.rerere.hugeicons.stroke.Book03
 import me.rerere.hugeicons.stroke.Folder01
 import me.rerere.hugeicons.stroke.Puzzle
 import me.rerere.hugeicons.stroke.Zap
+import me.rerere.rikkahub.R
 import me.rerere.rikkahub.Screen
+import me.rerere.rikkahub.service.DeepSeekPetService
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.components.ui.CardGroup
 import me.rerere.rikkahub.ui.context.LocalNavController
+import me.rerere.rikkahub.ui.context.LocalSettings
 import me.rerere.rikkahub.ui.theme.CustomColors
 import me.rerere.rikkahub.utils.plus
 
@@ -34,6 +41,13 @@ private const val WHALE_WIDGET_URL = "rikkahub://whale-widget"
 fun ExtensionsPage() {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val navController = LocalNavController.current
+    val context = LocalContext.current
+    val settings = LocalSettings.current
+    val deepSeekKey = settings.providers
+        .filterIsInstance<ProviderSetting.OpenAI>()
+        .firstOrNull { it.name == "DeepSeek" }
+        ?.apiKey
+        .orEmpty()
 
     Scaffold(
         topBar = {
@@ -58,9 +72,26 @@ fun ExtensionsPage() {
                     title = { Text(stringResource(R.string.extensions_page_section_extensions)) },
                 ) {
                     item(
+                        onClick = {
+                            if (!Settings.canDrawOverlays(context)) {
+                                context.startActivity(
+                                    Intent(
+                                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                        Uri.parse("package:${context.packageName}")
+                                    )
+                                )
+                            } else if (deepSeekKey.isNotBlank()) {
+                                DeepSeekPetService.start(context, deepSeekKey)
+                            }
+                        },
+                        leadingContent = { Icon(HugeIcons.Zap, null) },
+                        headlineContent = { Text("🐳 DeepSeek 娘桌宠") },
+                        supportingContent = { Text("点击、捏一下、拖着走；首次使用需要开启悬浮窗权限") },
+                    )
+                    item(
                         onClick = { navController.navigate(Screen.WebView(WHALE_WIDGET_URL)) },
                         leadingContent = { Icon(HugeIcons.Zap, null) },
-                        headlineContent = { Text("小鲸鱼记账") },
+                        headlineContent = { Text("小鲸鱼记账详情") },
                         supportingContent = { Text("DeepSeek 余额与今日用量") },
                     )
                     item(
