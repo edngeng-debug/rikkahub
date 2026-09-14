@@ -3,6 +3,9 @@ package me.rerere.rikkahub.ui.pages.extensions
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -49,6 +52,18 @@ fun ExtensionsPage() {
         ?.apiKey
         .orEmpty()
 
+    val overlayPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        if (Settings.canDrawOverlays(context)) {
+            if (deepSeekKey.isNotBlank()) {
+                DeepSeekPetService.start(context, deepSeekKey)
+            } else {
+                Toast.makeText(context, "请先在 RikkaHub 中配置 DeepSeek API Key", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
             LargeFlexibleTopAppBar(
@@ -74,7 +89,7 @@ fun ExtensionsPage() {
                     item(
                         onClick = {
                             if (!Settings.canDrawOverlays(context)) {
-                                context.startActivity(
+                                overlayPermissionLauncher.launch(
                                     Intent(
                                         Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                                         Uri.parse("package:${context.packageName}")
@@ -82,6 +97,8 @@ fun ExtensionsPage() {
                                 )
                             } else if (deepSeekKey.isNotBlank()) {
                                 DeepSeekPetService.start(context, deepSeekKey)
+                            } else {
+                                Toast.makeText(context, "请先在 RikkaHub 中配置 DeepSeek API Key", Toast.LENGTH_LONG).show()
                             }
                         },
                         leadingContent = { Icon(HugeIcons.Zap, null) },
