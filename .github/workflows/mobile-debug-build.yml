@@ -68,9 +68,16 @@ jobs:
       - name: Build debug APK
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug
+          ./gradlew assembleDebug --stacktrace
+
+      - name: Verify APK output
+        run: |
+          echo "APK files:" 
+          find app/build/outputs/apk/debug -maxdepth 1 -type f -name '*.apk' -print
+          test -n "$(find app/build/outputs/apk/debug -maxdepth 1 -type f -name '*.apk' -print -quit)"
 
       - name: Upload APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: rikkahub-mobile-debug
