@@ -44,6 +44,7 @@ import me.rerere.rikkahub.ui.components.webview.rememberWebViewState
 import me.rerere.rikkahub.ui.context.LocalSettings
 import me.rerere.rikkahub.ui.theme.JetbrainsMono
 import me.rerere.hugeicons.stroke.MoreVertical
+import me.rerere.ai.provider.ProviderSetting
 import org.json.JSONObject
 
 private const val BUNDLED_WHALE_WIDGET_URL = "rikkahub://whale-widget"
@@ -62,7 +63,11 @@ fun WebViewPage(url: String, contentId: String) {
     val settings = LocalSettings.current
     val isWhale = url == BUNDLED_WHALE_WIDGET_URL
     val whaleKey = remember(settings.providers) {
-        settings.providers.firstOrNull { it.name == "DeepSeek" }?.apiKey.orEmpty()
+        settings.providers
+            .filterIsInstance<ProviderSetting.OpenAI>()
+            .firstOrNull { it.name == "DeepSeek" }
+            ?.apiKey
+            .orEmpty()
     }
     val whaleUsage = remember(isWhale) {
         if (isWhale) WhaleUsageStore.snapshot(context) else "{}"
