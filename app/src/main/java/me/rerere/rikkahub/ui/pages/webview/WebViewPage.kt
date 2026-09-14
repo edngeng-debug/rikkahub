@@ -1,10 +1,6 @@
 package me.rerere.rikkahub.ui.pages.webview
 
-import me.rerere.hugeicons.HugeIcons
-import me.rerere.hugeicons.stroke.ArrowRight01
-import me.rerere.hugeicons.stroke.Bug01
-import me.rerere.hugeicons.stroke.Earth
-import me.rerere.hugeicons.stroke.Refresh01
+import android.content.Context
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -21,9 +17,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.SheetValue
 import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -33,121 +29,113 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
-import me.rerere.hugeicons.stroke.MoreVertical
+import me.rerere.hugeicons.HugeIcons
+import me.rerere.hugeicons.stroke.ArrowRight01
+import me.rerere.hugeicons.stroke.Bug01
+import me.rerere.hugeicons.stroke.Earth
+import me.rerere.hugeicons.stroke.Refresh01
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.components.webview.WEB_VIEW_BASE_URL
 import me.rerere.rikkahub.ui.components.webview.WebView
 import me.rerere.rikkahub.ui.components.webview.WebViewContentCache
 import me.rerere.rikkahub.ui.components.webview.rememberWebViewState
+import me.rerere.rikkahub.ui.context.LocalSettings
 import me.rerere.rikkahub.ui.theme.JetbrainsMono
+import me.rerere.hugeicons.stroke.MoreVertical
+import org.json.JSONObject
 
 private const val BUNDLED_WHALE_WIDGET_URL = "rikkahub://whale-widget"
+
+private fun loadWhaleHtml(context: Context, apiKey: String): String {
+    val html = context.assets.open("whale-widget.html").bufferedReader().use { it.readText() }
+    return html.replace("__RIKKAHUB_KEY__", JSONObject.quote(apiKey))
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WebViewPage(url: String, contentId: String) {
     val context = LocalContext.current
-    val state = when {
-        url == BUNDLED_WHALE_WIDGET_URL -> {
-            val content = remember {
-                context.assets.open("whale-widget.html").bufferedReader().use { it.readText() }
+    val settings = LocalSettings.current
+    val isWhale = url == BUNDLED_WHALE_WIDGET_URL
+    val whaleKey = remember(settings.providers) {
+        settings.providers.firstOrNull { it.name == "DeepSeek" }?.apiKey.orEmpty()
+    }
+    val state = if (isWhale) {
+        val content = remember(whaleKey) { loadWhaleHtml(context, whaleKey) }
+        rememberWebViewState(
+            data = content,
+            baseUrl = "https://api.deepseek.com/",
+            mimeType = "text/html",
+            settings = {
+                builtInZoomControls = true
+                displayZoomControls = false
+                useWideViewPort = true
+                loadWithOverviewMode = true
             }
-            rememberWebViewState(
-                data = content,
-                baseUrl = "https://api.deepseek.com/",
-                mimeType = "text/html",
-                settings = {
-                    builtInZoomControls = true
-                    displayZoomControls = false
-                    useWideViewPort = true
-                    loadWithOverviewMode = true
-                }
-            )
-        }
-        url.isNotEmpty() -> {
-            rememberWebViewState(
-                url = url,
-                settings = {
-                    builtInZoomControls = true
-                    displayZoomControls = false
-                    useWideViewPort = true
-                    loadWithOverviewMode = true
-                }
-            )
-        }
-        else -> {
-            val content = remember(contentId) {
-                WebViewContentCache.load(context.cacheDir, contentId).orEmpty()
+        )
+    } else if (url.isNotEmpty()) {
+        rememberWebViewState(
+            url = url,
+            settings = {
+                builtInZoomControls = true
+                displayZoomControls = false
+                useWideViewPort = true
+                loadWithOverviewMode = true
             }
-            rememberWebViewState(
-                data = content,
-                baseUrl = WEB_VIEW_BASE_URL,
-                mimeType = "text/html",
-                settings = {
-                    builtInZoomControls = true
-                    displayZoomControls = false
-                    useWideViewPort = true
-                    loadWithOverviewMode = true
-                }
-            )
+        )
+    } else {
+        val content = remember(contentId) {
+            WebViewContentCache.load(context.cacheDir, contentId).orEmpty()
         }
+        rememberWebViewState(
+            data = content,
+            baseUrl = WEB_VIEW_BASE_URL,
+            mimeType = "text/html",
+            settings = {
+                builtInZoomControls = true
+                displayZoomControls = false
+                useWideViewPort = true
+                loadWithOverviewMode = true
+            }
+        )
     }
 
     var showDropdown by remember { mutableStateOf(false) }
     var showConsoleSheet by remember { mutableStateOf(false) }
     val sheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden)
 
-    BackHandler(state.canGoBack) {
-        state.goBack()
-    }
+    BackHandler(state.canGoBack) { state.goBack() }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
                     Text(
-                        text = state.pageTitle?.takeIf { it.isNotEmpty() } ?: state.currentUrl
-                        ?: "",
+                        text = if (isWhale) "小鲸鱼记账" else state.pageTitle?.takeIf { it.isNotEmpty() } ?: state.currentUrl.orEmpty(),
                         maxLines = 1,
                         style = MaterialTheme.typography.titleSmall
                     )
                 },
-                navigationIcon = {
-                    BackButton()
-                },
+                navigationIcon = { BackButton() },
                 actions = {
                     IconButton(onClick = { state.reload() }) {
                         Icon(HugeIcons.Refresh01, contentDescription = "Refresh")
                     }
-
-                    IconButton(
-                        onClick = { state.goForward() },
-                        enabled = state.canGoForward
-                    ) {
+                    IconButton(onClick = { state.goForward() }, enabled = state.canGoForward) {
                         Icon(HugeIcons.ArrowRight01, contentDescription = "Forward")
                     }
-
                     val urlHandler = LocalUriHandler.current
-                    IconButton(
-                        onClick = { showDropdown = true }
-                    ) {
+                    IconButton(onClick = { showDropdown = true }) {
                         Icon(HugeIcons.MoreVertical, contentDescription = "More options")
-
-                        DropdownMenu(
-                            expanded = showDropdown,
-                            onDismissRequest = { showDropdown = false }
-                        ) {
+                        DropdownMenu(expanded = showDropdown, onDismissRequest = { showDropdown = false }) {
                             DropdownMenuItem(
                                 text = { Text("Open in Browser") },
                                 leadingIcon = { Icon(HugeIcons.Earth, contentDescription = null) },
                                 onClick = {
                                     showDropdown = false
                                     state.currentUrl?.let { currentUrl ->
-                                        if (currentUrl.isNotBlank() && currentUrl != BUNDLED_WHALE_WIDGET_URL) {
-                                            urlHandler.openUri(currentUrl)
-                                        }
+                                        if (currentUrl.isNotBlank() && currentUrl != BUNDLED_WHALE_WIDGET_URL) urlHandler.openUri(currentUrl)
                                     }
                                 }
                             )
@@ -167,39 +155,26 @@ fun WebViewPage(url: String, contentId: String) {
     ) {
         WebView(
             state = state,
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(it),
+            modifier = Modifier.fillMaxSize().padding(it),
         )
     }
 
     if (showConsoleSheet) {
-        ModalBottomSheet(
-            onDismissRequest = { showConsoleSheet = false },
-            sheetState = sheetState
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-            ) {
+        ModalBottomSheet(onDismissRequest = { showConsoleSheet = false }, sheetState = sheetState) {
+            Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                 Text(
                     text = "Console Logs",
                     style = MaterialTheme.typography.headlineSmall,
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
-
                 SelectionContainer {
                     LazyColumn {
                         items(state.consoleMessages) { message ->
                             Text(
-                                text = "${message.messageLevel().name}: ${message.message()}\n" +
-                                    "Source: ${message.sourceId()}:${message.lineNumber()}",
+                                text = "${message.messageLevel().name}: ${message.message()}\n" + "Source: ${message.sourceId()}:${message.lineNumber()}",
                                 style = MaterialTheme.typography.bodySmall,
                                 fontFamily = JetbrainsMono,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                                 color = when (message.messageLevel().name) {
                                     "ERROR" -> MaterialTheme.colorScheme.error
                                     "WARNING" -> MaterialTheme.colorScheme.secondary
@@ -209,7 +184,6 @@ fun WebViewPage(url: String, contentId: String) {
                         }
                     }
                 }
-
                 if (state.consoleMessages.isEmpty()) {
                     Text(
                         text = "No console messages",
