@@ -57,6 +57,12 @@ fun ExtensionsPage() {
                     title = { Text(stringResource(R.string.extensions_page_section_extensions)) },
                 ) {
                     item(
+                        onClick = { navController.navigate(Screen.WebView("https://rikkahub.local/whale-widget")) },
+                        leadingContent = { Icon(HugeIcons.Zap, null) },
+                        headlineContent = { Text("小鲸鱼记账") },
+                        supportingContent = { Text("DeepSeek 余额与今日用量") },
+                    )
+                    item(
                         onClick = { navController.navigate(Screen.QuickMessages) },
                         leadingContent = { Icon(HugeIcons.Zap, null) },
                         headlineContent = { Text(stringResource(R.string.assistant_page_quick_messages)) },
