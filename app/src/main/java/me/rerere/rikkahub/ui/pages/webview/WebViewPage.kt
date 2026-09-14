@@ -48,10 +48,10 @@ import org.json.JSONObject
 
 private const val BUNDLED_WHALE_WIDGET_URL = "rikkahub://whale-widget"
 
-private fun loadWhaleHtml(context: Context, apiKey: String, usageJson: String): String {
+private fun loadWhaleHtml(context: Context, deepSeekKey: String, usageJson: String): String {
     val html = context.assets.open("whale-widget.html").bufferedReader().use { it.readText() }
     return html
-        .replace("__RIKKAHUB_KEY__", JSONObject.quote(apiKey))
+        .replace("__RIKKAHUB_KEY__", JSONObject.quote(deepSeekKey))
         .replace("__RIKKAHUB_USAGE__", usageJson)
 }
 
