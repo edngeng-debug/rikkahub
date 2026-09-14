@@ -42,6 +42,7 @@ class DeepSeekPetService : Service() {
     private var windowManager: WindowManager? = null
     private var root: FrameLayout? = null
     private var pet: ImageView? = null
+    private var fallbackPet: TextView? = null
     private var bubble: TextView? = null
     private var balanceText: TextView? = null
     private var downX = 0f
@@ -100,6 +101,13 @@ class DeepSeekPetService : Service() {
             contentDescription = "DeepSeek 娘"
             setOnTouchListener(::onPetTouch)
         }
+        val fallback = TextView(this).apply {
+            text = "🐳"
+            textSize = 92f
+            gravity = Gravity.CENTER
+            isVisible = true
+            setOnTouchListener(::onPetTouch)
+        }
         val bubbleView = TextView(this).apply {
             setTextColor(Color.rgb(67, 86, 145))
             textSize = 13f
@@ -116,6 +124,7 @@ class DeepSeekPetService : Service() {
             setBackgroundColor(Color.argb(190, 32, 49, 112))
             isVisible = false
         }
+        container.addView(fallback, FrameLayout.LayoutParams(190, 190, Gravity.BOTTOM or Gravity.END))
         container.addView(image, FrameLayout.LayoutParams(190, 190, Gravity.BOTTOM or Gravity.END))
         container.addView(bubbleView, FrameLayout.LayoutParams(190, 100, Gravity.TOP or Gravity.START))
         container.addView(balanceView, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.END).apply { topMargin = 8 })
@@ -139,6 +148,7 @@ class DeepSeekPetService : Service() {
         windowManager?.addView(container, params)
         root = container
         pet = image
+        fallbackPet = fallback
         bubble = bubbleView
         balanceText = balanceView
         loadPetImage()
@@ -201,10 +211,25 @@ class DeepSeekPetService : Service() {
 
     private fun loadPetImage() {
         scope.launch(Dispatchers.IO) {
-            runCatching { URL(IMAGE_URL).openStream().use { BitmapFactory.decodeStream(it) } }
-                .getOrNull()?.let { bitmap ->
-                    launch(Dispatchers.Main) { pet?.setImageBitmap(bitmap) }
+            val bitmap = runCatching {
+                (URL(IMAGE_URL).openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 12_000
+                    readTimeout = 12_000
+                    requestMethod = "GET"
+                }.let { connection ->
+                    connection.inputStream.use { BitmapFactory.decodeStream(it) }.also { connection.disconnect() }
                 }
+            }.getOrNull()
+            launch(Dispatchers.Main) {
+                if (bitmap != null) {
+                    pet?.setImageBitmap(bitmap)
+                    pet?.isVisible = true
+                    fallbackPet?.isVisible = false
+                } else {
+                    pet?.isVisible = false
+                    fallbackPet?.isVisible = true
+                }
+            }
         }
     }
 
