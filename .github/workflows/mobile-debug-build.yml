@@ -13,6 +13,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-depth: 0
 
       - name: Set up JDK
         uses: actions/setup-java@v4
@@ -35,6 +36,24 @@ jobs:
       - name: Install web-ui dependencies
         working-directory: web-ui
         run: pnpm install --frozen-lockfile
+
+      - name: Restore settings page from master and add whale entry
+        run: |
+          git fetch origin master
+          git show origin/master:app/src/main/java/me/rerere/rikkahub/ui/pages/setting/SettingPage.kt > app/src/main/java/me/rerere/rikkahub/ui/pages/setting/SettingPage.kt
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('app/src/main/java/me/rerere/rikkahub/ui/pages/setting/SettingPage.kt')
+          s = p.read_text()
+          marker = 'import me.rerere.rikkahub.ui.context.LocalNavController\n'
+          s = s.replace(marker, marker + '\nprivate const val WHALE_WIDGET_URL = "rikkahub://whale-widget"\n', 1)
+          needle = '''                    item(\n                        onClick = { navController.navigate(Screen.Extensions) },\n                        leadingContent = { Icon(HugeIcons.Package, null) },\n                        supportingContent = { Text(stringResource(R.string.setting_page_extensions_desc)) },\n                        headlineContent = { Text(stringResource(R.string.setting_page_extensions)) },\n                    )\n'''
+          addition = needle + '''                    item(\n                        onClick = { navController.navigate(Screen.WebView(WHALE_WIDGET_URL)) },\n                        leadingContent = { Text("🐳", style = MaterialTheme.typography.titleLarge) },\n                        supportingContent = { Text("DeepSeek 余额、今日消耗与 RikkaHub 实际 Token 用量") },\n                        headlineContent = { Text("小鲸鱼记账") },\n                    )\n'''
+          if needle not in s:
+              raise SystemExit('settings insertion point not found')
+          s = s.replace(needle, addition, 1)
+          p.write_text(s)
+          PY
 
       - name: Provide CI-only Google Services config
         run: |
@@ -72,7 +91,7 @@ jobs:
 
       - name: Verify APK output
         run: |
-          echo "APK files:" 
+          echo "APK files:"
           find app/build/outputs/apk/debug -maxdepth 1 -type f -name '*.apk' -print
           test -n "$(find app/build/outputs/apk/debug -maxdepth 1 -type f -name '*.apk' -print -quit)"
 
