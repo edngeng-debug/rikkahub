@@ -4,21 +4,70 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>小鲸鱼记账</title>
 <style>
-body{margin:0;background:#101114;color:#f5f5f5;font-family:system-ui,sans-serif}main{min-height:100vh;padding:18px;box-sizing:border-box}.card{background:#1b1d22;border:1px solid #30333b;border-radius:20px;padding:16px;margin-bottom:14px}.hero{display:flex;align-items:center;gap:14px}.whale{width:70px;height:70px;border-radius:22px;background:#252a35;display:grid;place-items:center;font-size:44px}.title{font-size:20px;font-weight:700}.sub,.hint{color:#aeb3bf;font-size:13px;margin-top:4px}.row{display:flex;justify-content:space-between;padding:10px 0}.label{color:#aeb3bf}.value{font-weight:700;font-variant-numeric:tabular-nums}input,button{width:100%;box-sizing:border-box;padding:13px;border-radius:14px;font-size:15px}input{background:#121419;color:#fff;border:1px solid #3a3e48;margin:8px 0}button{border:0;background:#6ea8fe;color:#07101e;font-weight:700;margin-top:8px}.secondary{background:#292d36;color:#fff}.status{font-size:12px;margin-top:10px}.ok{color:#78d89a}.err{color:#ff8d8d}
+:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:#0f1115;color:#f5f7fb;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}main{max-width:680px;margin:auto;min-height:100vh;padding:16px}.card{background:#191c22;border:1px solid #2c3039;border-radius:22px;padding:16px;margin-bottom:14px;box-shadow:0 8px 28px rgba(0,0,0,.18)}.hero{display:flex;align-items:center;gap:14px}.whale{width:76px;height:76px;border-radius:25px;background:#242a35;display:grid;place-items:center;font-size:46px;transition:transform .16s}.whale:active{transform:scale(.92)}.title{font-size:21px;font-weight:800}.sub,.hint,.label{color:#aab1be;font-size:13px}.sub{margin-top:4px}.row{display:flex;justify-content:space-between;align-items:center;padding:10px 0}.value{font-weight:750;font-variant-numeric:tabular-nums}.big{font-size:25px}.positive{color:#7fe0a1}.warning{color:#ffd479}.danger{color:#ff8e8e}input,button{width:100%;padding:13px;border-radius:14px;font-size:15px}input{background:#11141a;color:#fff;border:1px solid #3a3f4a;outline:none;margin:8px 0}button{border:0;background:#78a9ff;color:#08101f;font-weight:800;margin-top:8px}button.secondary{background:#292e38;color:#fff}button.dangerbtn{background:#3a2528;color:#ffb1b1}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.grid button{margin:0}.section-title{font-weight:750;margin-bottom:8px}.progress{height:9px;background:#2a2e36;border-radius:99px;overflow:hidden}.bar{height:100%;width:0;background:#78a9ff;border-radius:99px;transition:width .3s}.settings{display:none}.settings.open{display:block}.history{max-height:260px;overflow:auto}.history-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #292d35;font-size:13px}.muted{color:#8e96a4}.badge{padding:3px 8px;border-radius:99px;background:#292e38;font-size:11px}.footer{padding:2px 4px 20px;line-height:1.6}.smallbtn{padding:9px;font-size:13px}
 </style>
 </head>
 <body><main>
-<div class="card hero"><div class="whale">🐋</div><div><div class="title">小鲸鱼记账</div><div class="sub">RikkaHub 移动版 · DeepSeek</div></div></div>
-<div class="card"><div class="row"><span class="label">账户余额</span><span class="value" id="balance">—</span></div><div class="row"><span class="label">今日已用</span><span class="value" id="today">—</span></div><div class="row"><span class="label">上次刷新</span><span class="value" id="time">—</span></div></div>
-<div class="card"><b>DeepSeek API Key</b><input id="key" type="password" placeholder="sk-..."><button onclick="saveAndRefresh()">保存并刷新</button><button class="secondary" onclick="refresh()">只刷新余额</button><div id="status" class="status hint">密钥仅保存在本机 WebView。</div></div>
-<div class="hint">今日已用采用本机观察到的余额下降额累计；首次刷新只建立基准，不会把历史余额差算进今天。</div>
+<div class="card hero"><div class="whale" id="whale">🐋</div><div><div class="title">小鲸鱼记账</div><div class="sub">RikkaHub 移动版 · DeepSeek Balance Whale</div></div></div>
+
+<div class="card">
+  <div class="row"><span class="label">账户余额</span><span class="value big" id="balance">—</span></div>
+  <div class="row"><span class="label">今日已用</span><span class="value" id="today">¥0.0000</span></div>
+  <div class="row"><span class="label">上次刷新</span><span class="value" id="time">—</span></div>
+  <div class="row"><span class="label">自动刷新</span><span class="badge">每 60 秒</span></div>
+</div>
+
+<div class="card">
+  <div class="section-title">DeepSeek API Key</div>
+  <input id="key" type="password" placeholder="sk-..." autocomplete="off">
+  <div class="grid"><button onclick="saveAndRefresh()">保存并刷新</button><button class="secondary" onclick="refresh()">立即刷新</button></div>
+  <div class="grid" style="margin-top:8px"><button class="secondary smallbtn" onclick="toggleKey()">显示 / 隐藏 Key</button><button class="dangerbtn smallbtn" onclick="forgetKey()">清除 Key</button></div>
+  <div id="status" class="hint" style="margin-top:10px">Key 只保存在本机 WebView localStorage，不写入 RikkaHub 配置。</div>
+</div>
+
+<div class="card">
+  <div class="section-title">今日预算</div>
+  <div class="row"><span class="label">预算上限</span><span class="value" id="budgetText">未设置</span></div>
+  <div class="progress"><div class="bar" id="budgetBar"></div></div>
+  <input id="budget" type="number" min="0" step="0.01" placeholder="例如 2.00（元）">
+  <button class="secondary" onclick="saveBudget()">保存预算</button>
+  <div id="budgetStatus" class="hint" style="margin-top:8px">达到预算后会在页面上提醒。</div>
+</div>
+
+<div class="card">
+  <div class="section-title">余额预警</div>
+  <div class="row"><span class="label">预警阈值</span><span class="value" id="warningText">未设置</span></div>
+  <input id="warning" type="number" min="0" step="0.01" placeholder="例如 5.00（元）">
+  <button class="secondary" onclick="saveWarning()">保存预警</button>
+  <div id="warningStatus" class="hint" style="margin-top:8px">余额低于阈值后显示提醒。</div>
+</div>
+
+<div class="card">
+  <div class="section-title">今日观测记录</div>
+  <div id="history" class="history"><div class="muted">暂无记录</div></div>
+  <div class="grid" style="margin-top:10px"><button class="secondary smallbtn" onclick="resetToday()">重置今日记账</button><button class="dangerbtn smallbtn" onclick="clearAll()">清除全部本地数据</button></div>
+</div>
+
+<div class="footer hint">今日已用采用「余额差值」记账：第一次刷新建立基准，之后余额下降就累计为今日消耗；充值或退款导致余额上升不会被算作消耗。网络异常时保留最近一次成功数据。余额来自 DeepSeek 官方余额接口。</div>
 </main>
 <script>
-const K='rikkahub_whale_key',B='rikkahub_whale_balance',D='rikkahub_whale_day',U='rikkahub_whale_today';
-const key=document.getElementById('key');key.value=localStorage.getItem(K)||'';
-const money=n=>Number.isFinite(n)?'¥'+n.toFixed(4):'—';
-function status(t,e=false){const x=document.getElementById('status');x.textContent=t;x.className='status '+(e?'err':'ok')}
-function render(){const day=new Date().toLocaleDateString('en-CA');if(localStorage.getItem(D)!==day){localStorage.setItem(D,day);localStorage.setItem(U,'0')}const b=Number(localStorage.getItem(B));document.getElementById('balance').textContent=money(b);document.getElementById('today').textContent=money(Number(localStorage.getItem(U)||0));}
-async function refresh(){const k=localStorage.getItem(K)||key.value.trim();if(!k){status('请先填写 API Key',true);return}status('正在刷新…');try{const r=await fetch('https://api.deepseek.com/user/balance',{headers:{Authorization:'Bearer '+k,Accept:'application/json'}});if(!r.ok)throw Error('HTTP '+r.status);const j=await r.json();const infos=j.balance_infos||[];const c=infos.find(x=>x.currency==='CNY')||infos[0];const now=Number(c&&c.total_balance);if(!Number.isFinite(now))throw Error('接口未返回余额');const old=Number(localStorage.getItem(B));if(Number.isFinite(old)&&now<old)localStorage.setItem(U,String(Number(localStorage.getItem(U)||0)+(old-now)));localStorage.setItem(B,String(now));localStorage.setItem(D,new Date().toLocaleDateString('en-CA'));document.getElementById('time').textContent=new Date().toLocaleTimeString();render();status('刷新成功')}catch(e){status('刷新失败：'+e.message,true);render()}}
-function saveAndRefresh(){localStorage.setItem(K,key.value.trim());refresh()}render();
+const K='rikkahub_whale_key',B='rikkahub_whale_balance',D='rikkahub_whale_day',U='rikkahub_whale_today',H='rikkahub_whale_history',BT='rikkahub_whale_budget',WT='rikkahub_whale_warning',T='rikkahub_whale_time';
+const $=id=>document.getElementById(id); const key=$('key');
+key.value=localStorage.getItem(K)||''; $('budget').value=localStorage.getItem(BT)||''; $('warning').value=localStorage.getItem(WT)||'';
+function day(){return new Date().toLocaleDateString('en-CA')}
+function money(n){return Number.isFinite(n)?'¥'+n.toFixed(4):'—'}
+function status(t,err=false){$('status').textContent=t;$('status').className='hint '+(err?'danger':'positive')}
+function ensureDay(){if(localStorage.getItem(D)!==day()){localStorage.setItem(D,day());localStorage.setItem(U,'0');localStorage.setItem(H,'[]')}}
+function load(){ensureDay();const b=Number(localStorage.getItem(B)),u=Number(localStorage.getItem(U)||0),budget=Number(localStorage.getItem(BT)),warning=Number(localStorage.getItem(WT));$('balance').textContent=money(b);$('today').textContent=money(u);$('time').textContent=localStorage.getItem(T)||'—';$('budgetText').textContent=budget>0?money(budget):'未设置';$('warningText').textContent=warning>0?money(warning):'未设置';const pct=budget>0?Math.min(100,u/budget*100):0;$('budgetBar').style.width=pct+'%';$('budgetStatus').textContent=budget>0?(u>=budget?'⚠️ 今日预算已达到或超出。':'已使用 '+pct.toFixed(1)+'%'):'达到预算后会在页面上提醒。';$('budgetStatus').className='hint '+(budget>0&&u>=budget?'danger':'');$('warningStatus').textContent=warning>0&&Number.isFinite(b)&&b<=warning?'⚠️ 当前余额低于预警阈值。':'余额低于阈值后显示提醒。';$('warningStatus').className='hint '+(warning>0&&Number.isFinite(b)&&b<=warning?'danger':'');renderHistory()}
+function renderHistory(){let a=[];try{a=JSON.parse(localStorage.getItem(H)||'[]')}catch{};if(!a.length){$('history').innerHTML='<div class="muted">暂无记录</div>';return}$('history').innerHTML=a.slice().reverse().map(x=>'<div class="history-row"><span>'+x.time+'</span><span>'+money(x.balance)+'</span><span class="'+(x.delta>0?'danger':'muted')+'">'+(x.delta>0?'−'+money(x.delta):x.delta<0?'＋'+money(-x.delta):'基准')+'</span></div>').join('')}
+async function refresh(){ensureDay();const k=localStorage.getItem(K)||key.value.trim();if(!k){status('请先填写 API Key',true);return}status('正在刷新…');try{const r=await fetch('https://api.deepseek.com/user/balance',{headers:{Authorization:'Bearer '+k,Accept:'application/json'}});if(!r.ok)throw Error('HTTP '+r.status);const j=await r.json();const infos=j.balance_infos||[];const c=infos.find(x=>x.currency==='CNY')||infos[0];const now=Number(c&&c.total_balance);if(!Number.isFinite(now))throw Error('接口未返回有效余额');const old=Number(localStorage.getItem(B));let delta=0;if(Number.isFinite(old)&&now<old){delta=old-now;localStorage.setItem(U,String(Number(localStorage.getItem(U)||0)+delta))}localStorage.setItem(B,String(now));localStorage.setItem(D,day());localStorage.setItem(T,new Date().toLocaleTimeString());let h=[];try{h=JSON.parse(localStorage.getItem(H)||'[]')}catch{};h.push({time:new Date().toLocaleTimeString(),balance:now,delta});localStorage.setItem(H,JSON.stringify(h.slice(-200)));load();status('刷新成功');if(delta>0)$('whale').animate([{transform:'scale(1)'},{transform:'scale(1.12)'},{transform:'scale(1)'}],{duration:360});}catch(e){load();status('刷新失败：'+e.message,true)}}
+function saveAndRefresh(){const v=key.value.trim();if(!v){forgetKey();return}localStorage.setItem(K,v);refresh()}
+function toggleKey(){key.type=key.type==='password'?'text':'password'}
+function forgetKey(){localStorage.removeItem(K);key.value='';status('已清除本机保存的 API Key')}
+function saveBudget(){const v=Number($('budget').value);if(v>0)localStorage.setItem(BT,String(v));else localStorage.removeItem(BT);load()}
+function saveWarning(){const v=Number($('warning').value);if(v>0)localStorage.setItem(WT,String(v));else localStorage.removeItem(WT);load()}
+function resetToday(){if(confirm('确定重置今天的记账数据吗？余额基准也会重新建立。')){localStorage.setItem(U,'0');localStorage.setItem(H,'[]');localStorage.removeItem(B);load();status('今日记账已重置')}}
+function clearAll(){if(confirm('确定清除小鲸鱼全部本地数据吗？')){[K,B,D,U,H,BT,WT,T].forEach(x=>localStorage.removeItem(x));key.value='';$('budget').value='';$('warning').value='';load();status('全部本地数据已清除')}}
+load();
+setInterval(()=>{if(localStorage.getItem(K))refresh()},60000);
 </script></body></html>
