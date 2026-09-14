@@ -1,5 +1,7 @@
 package me.rerere.rikkahub.service
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
@@ -17,6 +19,7 @@ import android.view.animation.OvershootInterpolator
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.TextView
+import androidx.core.app.NotificationCompat
 import androidx.core.view.isVisible
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -58,12 +61,30 @@ class DeepSeekPetService : Service() {
             ACTION_START -> {
                 key = intent.getStringExtra(EXTRA_KEY).orEmpty()
                 if (Settings.canDrawOverlays(this)) {
+                    ensureForegroundNotification()
                     showPet()
                     startRefreshing()
                 }
             }
         }
         return START_NOT_STICKY
+    }
+
+    private fun ensureForegroundNotification() {
+        val manager = getSystemService(NotificationManager::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            manager.createNotificationChannel(
+                NotificationChannel(CHANNEL_ID, "DeepSeek 娘桌宠", NotificationManager.IMPORTANCE_LOW)
+            )
+        }
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_menu_info_details)
+            .setContentTitle("DeepSeek 娘桌宠正在陪你")
+            .setContentText("点击、拖动或捏一下桌宠即可互动")
+            .setOngoing(true)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .build()
+        startForeground(NOTIFICATION_ID, notification)
     }
 
     private fun showPet() {
@@ -248,12 +269,14 @@ class DeepSeekPetService : Service() {
         const val ACTION_START = "me.rerere.rikkahub.action.DEEPSEEK_PET_START"
         const val ACTION_STOP = "me.rerere.rikkahub.action.DEEPSEEK_PET_STOP"
         const val EXTRA_KEY = "deepseek_api_key"
+        private const val CHANNEL_ID = "deepseek_pet"
+        private const val NOTIFICATION_ID = 1861
         private const val BALANCE_URL = "https://api.deepseek.com/user/balance"
         private const val IMAGE_URL = "https://raw.githubusercontent.com/MeteorNOX/DeepSeek-Balance-Whale-Widget/40cebc2937aea674247a0d0e03e16c154f7b9864/assets/DSniang1.png"
 
         fun start(context: Context, apiKey: String) {
             if (!Settings.canDrawOverlays(context)) return
-            context.startService(Intent(context, DeepSeekPetService::class.java).apply {
+            context.startForegroundService(Intent(context, DeepSeekPetService::class.java).apply {
                 action = ACTION_START
                 putExtra(EXTRA_KEY, apiKey)
             })
