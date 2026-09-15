@@ -32,8 +32,7 @@ fun DaFeiYuWidget(modifier: Modifier = Modifier) {
         ready = true
     }
 
-    // The host may occupy the whole chat screen, but the actual Android WebView must not.
-    // A full-screen WebView was intercepting the rest of RikkaHub even when its HTML was transparent.
+    // Keep the WebView itself confined to the widget hit area; the surrounding host may be larger.
     Box(modifier = modifier) {
         if (ready) {
             AndroidView(
