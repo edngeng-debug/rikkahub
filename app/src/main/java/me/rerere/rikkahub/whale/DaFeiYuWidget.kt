@@ -27,19 +27,23 @@ import java.io.ByteArrayInputStream
 fun DaFeiYuWidget(modifier: Modifier = Modifier) {
     var ready by remember { mutableStateOf(false) }
 
+    // Let the normal RikkaHub UI become interactive first. WebView creation is relatively
+    // expensive and must happen on the UI thread, so it should never compete with first draw.
     LaunchedEffect(Unit) {
-        kotlinx.coroutines.delay(500L)
+        kotlinx.coroutines.delay(1200L)
         ready = true
     }
 
-    // Keep the WebView itself confined to the widget hit area; the surrounding host may be larger.
     Box(modifier = modifier) {
         if (ready) {
             AndroidView(
+                // The actual whale is much smaller than the old 320dp hit area. Keeping the
+                // native WebView close to its real size prevents it from swallowing unrelated
+                // Compose clicks near the bottom-right corner.
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .width(320.dp)
-                    .height(320.dp),
+                    .width(160.dp)
+                    .height(160.dp),
                 factory = { context ->
                     DaFeiYuWebView(context).apply {
                         setBackgroundColor(Color.TRANSPARENT)
@@ -65,6 +69,8 @@ fun DaFeiYuWidget(modifier: Modifier = Modifier) {
                             </head>
                             <body style="margin:0;background:transparent;overflow:visible;width:100%;height:100%;min-height:100%">
                               <div id="root"></div>
+                              <!-- The original widget checks for the host chat composer before mounting. -->
+                              <textarea aria-hidden="true" tabindex="-1" style="position:absolute;left:-99999px;top:-99999px;width:1px;height:1px;opacity:0"></textarea>
                               <script>$script</script>
                               <script>$debugScript</script>
                             </body>
