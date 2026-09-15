@@ -44,12 +44,20 @@ fun DaFeiYuWidget(modifier: Modifier = Modifier) {
             webView.settings.mediaPlaybackRequiresUserGesture = false
             webView.isVerticalScrollBarEnabled = false
             webView.isHorizontalScrollBarEnabled = false
+            // The whale must never become the app's IME/focus target.
+            webView.isFocusable = false
+            webView.isFocusableInTouchMode = false
+            webView.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            webView.overScrollMode = View.OVER_SCROLL_NEVER
 
             val renderPopup = PopupWindow(webView, -1, -1, false).apply {
                 setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
                 isTouchable = false
                 isFocusable = false
                 isOutsideTouchable = false
+                // Keep the transparent renderer behind the keyboard. INPUT_METHOD_NOT_NEEDED
+                // would let a full-screen popup cover the IME even though it is non-focusable.
+                setInputMethodMode(PopupWindow.INPUT_METHOD_NEEDED)
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     setIsLaidOutInScreen(true)
                     setIsClippedToScreen(false)
@@ -62,7 +70,9 @@ fun DaFeiYuWidget(modifier: Modifier = Modifier) {
                 setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
                 isTouchable = true
                 isFocusable = false
-                isOutsideTouchable = true
+                // Do not auto-dismiss the relay when the user taps RikkaHub outside the whale.
+                setOutsideTouchable(false)
+                setInputMethodMode(PopupWindow.INPUT_METHOD_NEEDED)
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     setTouchModal(false)
                     setIsLaidOutInScreen(true)
@@ -78,17 +88,11 @@ fun DaFeiYuWidget(modifier: Modifier = Modifier) {
 
             val script = context.assets.open("dafeiyu/whale-widget.js").bufferedReader().use { it.readText() }
             val debugScript = context.assets.open("dafeiyu/debug.js").bufferedReader().use { it.readText() }
-            webView.loadDataWithBaseURL(
-                "https://rikkahub.local/",
-                """
+            val html = """
                 <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"></head>
-                <body style="margin:0;background:transparent;overflow:visible;width:100%;height:100%;min-height:100%"><div id="root"><textarea aria-hidden="true" style="position:absolute;left:-9999px"></textarea></div>
+                <body style="margin:0;background:transparent;overflow:visible;width:100%;height:100%;min-height:100%"><div id="root"></div>
                 <script>$script</script><script>$debugScript</script></body></html>
-                """.trimIndent(),
-                "text/html",
-                "UTF-8",
-                null,
-            )
+            """.trimIndent()
 
             fun show() {
                 val w = decor.width
@@ -108,8 +112,22 @@ fun DaFeiYuWidget(modifier: Modifier = Modifier) {
                 relay.applyPending()
             }
 
-            decor.post { show() }
+            // Let the first Compose frame and the normal input connection settle before
+            // starting WebView. This removes WebView startup work from the critical launch path.
+            val start = Runnable {
+                webView.loadDataWithBaseURL(
+                    "https://rikkahub.local/",
+                    html,
+                    "text/html",
+                    "UTF-8",
+                    null,
+                )
+                show()
+            }
+            decor.postDelayed(start, 120L)
+
             onDispose {
+                decor.removeCallbacks(start)
                 try { touchPopup.dismiss() } catch (_: Throwable) { }
                 try { renderPopup.dismiss() } catch (_: Throwable) { }
                 try { webView.stopLoading(); webView.destroy() } catch (_: Throwable) { }
@@ -153,6 +171,8 @@ private class TouchRelayController(
     @Volatile private var interactive = false
     @Volatile private var gestureActive = false
     @Volatile private var pendingApply = false
+    private var appliedRect = RectF(-1f, -1f, -1f, -1f)
+    private var appliedInteractive = false
 
     var forwardOffsetX: Float = 0f
         private set
@@ -165,28 +185,29 @@ private class TouchRelayController(
         val h = max(1, decor.height).toFloat()
         val sx = w / viewportWidth
         val sy = h / viewportHeight
-        val l = left * sx
-        val t = top * sy
-        val r = right * sx
-        val b = bottom * sy
-        if (r <= l || b <= t) return
-        widgetRect = RectF(l, t, r, b)
+        val next = RectF(left * sx, top * sy, right * sx, bottom * sy)
+        if (next.right <= next.left || next.bottom <= next.top) return
+        if (kotlin.math.abs(next.left - widgetRect.left) < 1f &&
+            kotlin.math.abs(next.top - widgetRect.top) < 1f &&
+            kotlin.math.abs(next.right - widgetRect.right) < 1f &&
+            kotlin.math.abs(next.bottom - widgetRect.bottom) < 1f) return
+        widgetRect = next
         applyPending()
     }
 
     fun setMenuOpen(open: Boolean) {
+        if (interactive == open) return
         interactive = open
         applyPending()
     }
 
     fun setInteractive(open: Boolean) {
+        if (interactive == open) return
         interactive = open
         applyPending()
     }
 
-    fun beginGesture() {
-        gestureActive = true
-    }
+    fun beginGesture() { gestureActive = true }
 
     fun endGesture() {
         gestureActive = false
@@ -199,17 +220,14 @@ private class TouchRelayController(
             pendingApply = true
             return
         }
-        pendingApply = false
         val w = max(1, decor.width)
         val h = max(1, decor.height)
         if (interactive) {
+            if (appliedInteractive && !pendingApply) return
             forwardOffsetX = 0f
             forwardOffsetY = 0f
             touchPopup.update(0, 0, w, h)
-            touchView.layoutParams = touchView.layoutParams?.apply {
-                width = w
-                height = h
-            } ?: android.view.ViewGroup.LayoutParams(w, h)
+            appliedRect = RectF(0f, 0f, w.toFloat(), h.toFloat())
         } else {
             val l = widgetRect.left.toInt().coerceIn(0, max(0, w - 1))
             val t = widgetRect.top.toInt().coerceIn(0, max(0, h - 1))
@@ -217,14 +235,15 @@ private class TouchRelayController(
             val b = ceil(widgetRect.bottom).toInt().coerceIn(t + 1, h)
             val pw = max(1, r - l)
             val ph = max(1, b - t)
+            val next = RectF(l.toFloat(), t.toFloat(), r.toFloat(), b.toFloat())
+            if (!pendingApply && !appliedInteractive && next == appliedRect) return
             forwardOffsetX = l.toFloat()
             forwardOffsetY = t.toFloat()
             touchPopup.update(l, t, pw, ph)
-            touchView.layoutParams = touchView.layoutParams?.apply {
-                width = pw
-                height = ph
-            } ?: android.view.ViewGroup.LayoutParams(pw, ph)
+            appliedRect = next
         }
+        appliedInteractive = interactive
+        pendingApply = false
         touchView.requestLayout()
     }
 }
