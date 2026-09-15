@@ -1,6 +1,6 @@
 name: Build 大肥鱼 APK
 
-# Rebuild marker: make sure the current 大肥鱼 source commit gets a fresh APK artifact.
+# Rebuild marker: rebuild after the native touch-isolation and widget-size fixes.
 
 on:
   push:
@@ -31,10 +31,9 @@ jobs:
           node-version: 22
 
       - name: Set up pnpm
-        shell: bash
-        run: |
-          npm install --global pnpm@10
-          pnpm --version
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
 
       - name: Install web UI dependencies
         working-directory: web-ui
