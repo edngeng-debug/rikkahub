@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - 'app/src/main/java/me/rerere/rikkahub/whale/DaFeiYuWidget.kt'
+      - 'app/src/main/assets/dafeiyu/debug.js'
       - '.github/workflows/finish-dafeiyu.yml'
 
 permissions:
@@ -52,6 +53,18 @@ jobs:
           s = mod.read_text().replace('            analytics = get(),\n', '')
           mod.write_text(s)
 
+      - name: Expand 大肥鱼 WebView to full screen
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('app/src/main/java/me/rerere/rikkahub/RouteActivity.kt')
+          s = p.read_text()
+          s = s.replace('import androidx.compose.ui.unit.dp\n', 'import androidx.compose.ui.unit.dp\n')
+          s = s.replace('                                        modifier = Modifier\n                                            .align(Alignment.BottomEnd)\n                                            .width(320.dp)\n                                            .height(320.dp)\n', '                                        modifier = Modifier.fillMaxSize()\n')
+          s = s.replace('import androidx.compose.foundation.layout.height\n', '')
+          s = s.replace('import androidx.compose.foundation.layout.width\n', '')
+          p.write_text(s)
+
       - name: Build debug APK
         run: |
           chmod +x ./gradlew
@@ -70,6 +83,6 @@ jobs:
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add app/src/main/java/me/rerere/rikkahub/ui/pages/chat/ChatVM.kt app/src/main/java/me/rerere/rikkahub/di/ViewModelModule.kt
-          git commit -m 'fix: avoid Firebase analytics dependency in standalone build [dafeiyu-finished]' || exit 0
+          git add app/src/main/java/me/rerere/rikkahub/ui/pages/chat/ChatVM.kt app/src/main/java/me/rerere/rikkahub/di/ViewModelModule.kt app/src/main/java/me/rerere/rikkahub/RouteActivity.kt
+          git commit -m 'fix: finish 大肥鱼 UI optimization [dafeiyu-finished]' || exit 0
           git push
