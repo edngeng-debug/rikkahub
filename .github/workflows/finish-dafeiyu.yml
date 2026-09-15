@@ -65,11 +65,14 @@ jobs:
           s = p.read_text()
           s = s.replace('import androidx.compose.foundation.layout.height\n', '')
           s = s.replace('import androidx.compose.foundation.layout.width\n', '')
-          pattern = r'modifier = Modifier\s*\.align\(Alignment\.BottomEnd\)\s*\.width\(320\.dp\)\s*\.height\(320\.dp\)'
-          s2, n = re.subn(pattern, 'modifier = Modifier.fillMaxSize()', s, count=1)
-          if n != 1:
+          old = r'modifier = Modifier\s*\.align\(Alignment\.BottomEnd\)\s*\.width\(320\.dp\)\s*\.height\(320\.dp\)'
+          if re.search(old, s):
+              s = re.sub(old, 'modifier = Modifier.fillMaxSize()', s, count=1)
+          elif 'DaFeiYuWidget(\n                                        modifier = Modifier.fillMaxSize()' in s:
+              print('RouteActivity already uses full-screen 大肥鱼 modifier; nothing to patch')
+          else:
               raise SystemExit('RouteActivity 大肥鱼 modifier anchor not found')
-          p.write_text(s2)
+          p.write_text(s)
 
       - name: Build debug APK
         run: |
