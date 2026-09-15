@@ -15,13 +15,20 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      - name: Sync upstream whale widget assets
+      - name: Sync upstream 大肥鱼 widget unchanged
         run: |
-          mkdir -p app/src/main/assets
-          cp third_party/DeepSeek-Balance-Whale-Widget/assets/* app/src/main/assets/
-          test -f app/src/main/assets/whale-widget.js
-          test -f app/src/main/assets/DSniang1.png
-          test -f app/src/main/assets/DSniang02.png
+          rm -rf app/src/main/assets/dsh-whale
+          mkdir -p app/src/main/assets/dsh-whale
+          cp third_party/DeepSeek-Balance-Whale-Widget/assets/* app/src/main/assets/dsh-whale/
+          cp third_party/DeepSeek-Balance-Whale-Widget/assets/whale-widget.js app/src/main/assets/dsh-whale/widget.js
+          # Only the visible character name is localized; behavior and artwork remain upstream.
+          sed -i 's/小鲸鱼/大肥鱼/g' app/src/main/assets/dsh-whale/widget.js
+          test -f app/src/main/assets/dsh-whale/widget.js
+          test -f app/src/main/assets/dsh-whale/DSniang1.png
+          test -f app/src/main/assets/dsh-whale/DSniang02.png
+          test -f app/src/main/assets/dsh-whale/rua.gif
+          test -f app/src/main/assets/dsh-whale/Ya1.mp3
+          test -f app/src/main/assets/dsh-whale/Ya2.mp3
 
       - name: Set up JDK
         uses: actions/setup-java@v4
