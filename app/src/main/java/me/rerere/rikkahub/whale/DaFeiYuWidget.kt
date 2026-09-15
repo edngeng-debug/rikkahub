@@ -25,8 +25,6 @@ import java.io.ByteArrayInputStream
 @Composable
 fun DaFeiYuWidget(modifier: Modifier = Modifier) {
     var ready by remember { mutableStateOf(false) }
-
-    // Give RikkaHub a few frames to become interactive before creating the WebView.
     LaunchedEffect(Unit) {
         kotlinx.coroutines.delay(300L)
         ready = true
@@ -52,8 +50,8 @@ fun DaFeiYuWidget(modifier: Modifier = Modifier) {
                         isFocusable = false
                         isFocusableInTouchMode = false
                         overScrollMode = WebView.OVER_SCROLL_NEVER
-
                         webViewClient = DaFeiYuWebViewClient(context)
+
                         val script = context.assets.open("dafeiyu/whale-widget.js").bufferedReader().use { it.readText() }
                         val debugScript = context.assets.open("dafeiyu/debug.js").bufferedReader().use { it.readText() }
                         val html = """
@@ -64,9 +62,9 @@ fun DaFeiYuWidget(modifier: Modifier = Modifier) {
                             </head>
                             <body style="margin:0;background:transparent;overflow:visible;width:100%;height:100%;min-height:100%">
                               <div id="root">
-                                <!-- whale-widget.js checks #root for a composer before mounting. -->
                                 <textarea aria-hidden="true" tabindex="-1" style="position:absolute;left:-99999px;top:-99999px;width:1px;height:1px;opacity:0"></textarea>
                               </div>
+                              <script>window.__RIKKAHUB_DAFEIYU_EMBEDDED=true;</script>
                               <script>$script</script>
                               <script>$debugScript</script>
                             </body>
