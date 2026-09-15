@@ -23,7 +23,6 @@ import androidx.compose.ui.platform.LocalView
 import java.io.ByteArrayInputStream
 import kotlin.math.ceil
 import kotlin.math.max
-import kotlin.math.min
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
@@ -46,10 +45,6 @@ fun DaFeiYuWidget(modifier: Modifier = Modifier) {
             webView.isVerticalScrollBarEnabled = false
             webView.isHorizontalScrollBarEnabled = false
 
-            // The renderer is a transparent full-screen window, but it is explicitly
-            // non-touchable. A separate, tiny touch window below forwards only the
-            // actual widget hit area to this WebView. This prevents the WebView from
-            // becoming a giant invisible touch shield over RikkaHub.
             val renderPopup = PopupWindow(webView, -1, -1, false).apply {
                 setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
                 isTouchable = false
@@ -76,7 +71,7 @@ fun DaFeiYuWidget(modifier: Modifier = Modifier) {
                 setAttachedInDecor(true)
             }
 
-            val relay = TouchRelayController(decor, webView, renderPopup, touchPopup, touchView)
+            val relay = TouchRelayController(decor, touchPopup, touchView)
             touchView.controller = relay
             webView.addJavascriptInterface(MenuStateBridge(relay), "RikkaDaFeiYu")
             webView.webViewClient = DaFeiYuWebViewClient(context)
@@ -115,9 +110,9 @@ fun DaFeiYuWidget(modifier: Modifier = Modifier) {
 
             decor.post { show() }
             onDispose {
-                try { touchPopup.dismiss() } catch (_: Throwable) {}
-                try { renderPopup.dismiss() } catch (_: Throwable) {}
-                try { webView.stopLoading(); webView.destroy() } catch (_: Throwable) {}
+                try { touchPopup.dismiss() } catch (_: Throwable) { }
+                try { renderPopup.dismiss() } catch (_: Throwable) { }
+                try { webView.stopLoading(); webView.destroy() } catch (_: Throwable) { }
             }
         }
     }
@@ -151,8 +146,6 @@ private class TouchRelayView(
 
 private class TouchRelayController(
     private val decor: View,
-    private val webView: DaFeiYuWebView,
-    private val renderPopup: PopupWindow,
     private val touchPopup: PopupWindow,
     private val touchView: TouchRelayView,
 ) {
@@ -182,8 +175,7 @@ private class TouchRelayController(
     }
 
     fun setMenuOpen(open: Boolean) {
-        interactive = open || interactive
-        if (!open) interactive = false
+        interactive = open
         applyPending()
     }
 
@@ -198,7 +190,7 @@ private class TouchRelayController(
 
     fun endGesture() {
         gestureActive = false
-        applyPending = true
+        pendingApply = true
         applyPending()
     }
 
