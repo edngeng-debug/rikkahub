@@ -31,21 +31,27 @@ import kotlinx.coroutines.launch
 import me.rerere.rikkahub.data.ai.WhaleUsageStore
 import org.json.JSONObject
 import java.io.ByteArrayInputStream
+import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.Calendar
 import java.util.Locale
+import java.util.TimeZone
 import kotlin.math.abs
 
 /**
- * Android host for the original DeepSeek-Balance-Whale-Widget front-end.
- * The actual artwork and whale-widget.js come from the upstream repository submodule.
+ * Android host for MeteorNOX/DeepSeek-Balance-Whale-Widget.
+ *
+ * The upstream widget JavaScript and all artwork/audio are bundled from the
+ * repository submodule. This service only supplies the host routes that the
+ * original DSH plugin normally exposes through its Node webServer.
  */
 class DeepSeekPetService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var refreshJob: Job? = null
     private var apiKey = ""
     private var windowManager: WindowManager? = null
-    private var window: FrameRoot? = null
+    private var window: View? = null
     private var webView: WebView? = null
     private var params: WindowManager.LayoutParams? = null
     private var downX = 0f
@@ -83,13 +89,13 @@ class DeepSeekPetService : Service() {
         val manager = getSystemService(NotificationManager::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             manager.createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, "DeepSeek 娘桌宠", NotificationManager.IMPORTANCE_LOW)
+                NotificationChannel(CHANNEL_ID, "DeepSeek 大肥鱼", NotificationManager.IMPORTANCE_LOW)
             )
         }
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_menu_info_details)
-            .setContentTitle("DeepSeek 娘桌宠正在陪你")
-            .setContentText("点击、长按或拖动桌宠即可互动")
+            .setContentTitle("DeepSeek 大肥鱼正在陪你")
+            .setContentText("点击、按住或拖动大肥鱼即可互动")
             .setOngoing(true)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .build()
@@ -99,14 +105,18 @@ class DeepSeekPetService : Service() {
     private fun showPet() {
         if (window != null) return
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
-        val size = (360 * resources.displayMetrics.density).toInt()
+
+        val size = (320 * resources.displayMetrics.density).toInt()
         val screenW = resources.displayMetrics.widthPixels
         val screenH = resources.displayMetrics.heightPixels
         val wmParams = WindowManager.LayoutParams(
             size,
             size,
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-            else @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            } else {
+                @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE
+            },
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT,
         ).apply {
@@ -115,38 +125,42 @@ class DeepSeekPetService : Service() {
             y = (screenH - size - (72 * resources.displayMetrics.density).toInt()).coerceAtLeast(0)
         }
 
-        val container = FrameRoot(this).apply {
-            setBackgroundColor(Color.TRANSPARENT)
-            clipChildren = false
-        }
         val view = WebView(this).apply {
             setBackgroundColor(Color.TRANSPARENT)
+            setLayerType(View.LAYER_TYPE_SOFTWARE, null)
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
-            settings.allowFileAccess = true
-            settings.allowContentAccess = true
-            settings.allowFileAccessFromFileURLs = true
-            settings.allowUniversalAccessFromFileURLs = true
             settings.mediaPlaybackRequiresUserGesture = false
             settings.builtInZoomControls = false
             settings.displayZoomControls = false
-            webViewClient = WhaleWebViewClient()
+            settings.allowFileAccess = false
+            settings.allowContentAccess = false
+            isVerticalScrollBarEnabled = false
+            isHorizontalScrollBarEnabled = false
+            webViewClient = UpstreamWidgetWebViewClient()
             addJavascriptInterface(WhaleBridge(), "RikkaHubWhaleBridge")
         }
-        container.addView(view, FrameRoot.LayoutParams(-1, -1))
-        container.setOnTouchListener(::onOverlayTouch)
-        windowManager?.addView(container, wmParams)
-        window = container
+
+        view.setOnTouchListener { _, event -> onOverlayTouch(event) }
+        windowManager?.addView(view, wmParams)
+        window = view
         webView = view
         params = wmParams
         loadHostPage()
     }
 
     private fun loadHostPage() {
-        webView?.loadUrl("file:///android_asset/deepseek_whale_host.html")
+        val html = assets.open("deepseek_whale_host.html").bufferedReader().use { it.readText() }
+        webView?.loadDataWithBaseURL(
+            "https://rikkahub.local/",
+            html,
+            "text/html",
+            "UTF-8",
+            null,
+        )
     }
 
-    private fun onOverlayTouch(view: View, event: MotionEvent): Boolean {
+    private fun onOverlayTouch(event: MotionEvent): Boolean {
         val p = params ?: return true
         val x = event.x
         val y = event.y
@@ -159,7 +173,6 @@ class DeepSeekPetService : Service() {
                 moved = false
                 cancelledSyntheticPointer = false
                 dispatchSyntheticPointer("pointerdown", x, y)
-                return true
             }
             MotionEvent.ACTION_MOVE -> {
                 val dx = (event.rawX - downX).toInt()
@@ -175,7 +188,6 @@ class DeepSeekPetService : Service() {
                     clampWindow(p)
                     windowManager?.updateViewLayout(window, p)
                 }
-                return true
             }
             MotionEvent.ACTION_UP -> {
                 if (!moved && !cancelledSyntheticPointer) {
@@ -184,23 +196,21 @@ class DeepSeekPetService : Service() {
                 } else if (!cancelledSyntheticPointer) {
                     dispatchSyntheticPointer("pointercancel", x, y)
                 }
-                return true
             }
             MotionEvent.ACTION_CANCEL -> {
                 if (!cancelledSyntheticPointer) dispatchSyntheticPointer("pointercancel", x, y)
-                return true
             }
         }
         return true
     }
 
     private fun clampWindow(p: WindowManager.LayoutParams) {
-        val w = resources.displayMetrics.widthPixels
-        val h = resources.displayMetrics.heightPixels
-        val width = window?.width ?: 0
-        val height = window?.height ?: 0
-        p.x = p.x.coerceIn(-width / 2, w - width / 2)
-        p.y = p.y.coerceIn(0, h - height)
+        val screenW = resources.displayMetrics.widthPixels
+        val screenH = resources.displayMetrics.heightPixels
+        val width = p.width
+        val height = p.height
+        p.x = p.x.coerceIn(-width / 2, screenW - width / 2)
+        p.y = p.y.coerceIn(0, screenH - height)
     }
 
     private fun dispatchSyntheticPointer(type: String, x: Float, y: Float) {
@@ -251,6 +261,7 @@ class DeepSeekPetService : Service() {
             val text = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
             connection.disconnect()
             if (code !in 200..299) return@runCatching
+
             val json = JSONObject(text)
             val infos = json.optJSONArray("balance_infos") ?: return@runCatching
             var selected: JSONObject? = null
@@ -285,9 +296,14 @@ class DeepSeekPetService : Service() {
         val today = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.US).format(java.util.Date())
         val oldDay = prefs.getString("day", null)
         val oldCurrency = prefs.getString("currency", null)
-        var usage = if (oldDay == today && oldCurrency == currency) prefs.getString("today_usage", "0")?.toDoubleOrNull() ?: 0.0 else 0.0
-        val old = if (oldDay == today && oldCurrency == currency) prefs.getString("last_balance", null)?.toDoubleOrNull() else null
+        var usage = if (oldDay == today && oldCurrency == currency) {
+            prefs.getString("today_usage", "0")?.toDoubleOrNull() ?: 0.0
+        } else 0.0
+        val old = if (oldDay == today && oldCurrency == currency) {
+            prefs.getString("last_balance", null)?.toDoubleOrNull()
+        } else null
         if (old != null && balance < old) usage += old - balance
+
         prefs.edit()
             .putString("day", today)
             .putString("currency", currency)
@@ -295,6 +311,7 @@ class DeepSeekPetService : Service() {
             .putString("today_usage", usage.toString())
             .putLong("updated_at", System.currentTimeMillis())
             .apply()
+
         lastBalance = balance
         balanceCurrency = currency
         todayUsage = usage
@@ -310,29 +327,41 @@ class DeepSeekPetService : Service() {
             updatedAt = prefs.getLong("updated_at", 0L)
         }
         return if (lastBalance != null) {
-            JSONObject().put("ok", true).put("totalBalance", lastBalance).put("currency", balanceCurrency)
-                .put("updatedAt", updatedAt).put("todayUsage", todayUsage).put("isPeak", isPeakHour())
-                .put("usageMode", "ledger").toString()
+            JSONObject()
+                .put("ok", true)
+                .put("totalBalance", lastBalance)
+                .put("currency", balanceCurrency)
+                .put("updatedAt", updatedAt)
+                .put("todayUsage", todayUsage)
+                .put("isPeak", isPeakHour())
+                .put("usageMode", "ledger")
+                .toString()
         } else {
             JSONObject().put("ok", false).put("code", "NO_BALANCE").put("error", "尚未获取到余额").toString()
         }
     }
 
     private fun isPeakHour(): Boolean {
-        val now = java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("Asia/Shanghai"))
-        val day = now.get(java.util.Calendar.DAY_OF_WEEK)
-        if (day == java.util.Calendar.SATURDAY || day == java.util.Calendar.SUNDAY) return false
-        val hour = now.get(java.util.Calendar.HOUR_OF_DAY)
+        val now = Calendar.getInstance(TimeZone.getTimeZone("Asia/Shanghai"))
+        val day = now.get(Calendar.DAY_OF_WEEK)
+        if (day == Calendar.SATURDAY || day == Calendar.SUNDAY) return false
+        val hour = now.get(Calendar.HOUR_OF_DAY)
         return hour in 9..11 || hour in 14..17
     }
 
     private fun sizeJson(): String {
         val p = getSharedPreferences(SIZE_PREFS, MODE_PRIVATE)
-        return JSONObject().put("scale", p.getFloat("scale", 1f).toDouble()).put("sound", p.getBoolean("sound", true))
-            .put("vol", p.getFloat("vol", 1f).toDouble()).put("soundSet", p.getString("soundSet", "duck"))
-            .put("usageMode", p.getString("usageMode", "ledger")).put("peakMode", p.getString("peakMode", "default"))
-            .put("bubbleOn", p.getBoolean("bubbleOn", true)).put("turnCostOn", p.getBoolean("turnCostOn", false))
-            .put("turnCostCloseMs", p.getLong("turnCostCloseMs", 5000L)).toString()
+        return JSONObject()
+            .put("scale", p.getFloat("scale", 1f).toDouble())
+            .put("sound", p.getBoolean("sound", true))
+            .put("vol", p.getFloat("vol", 1f).toDouble())
+            .put("soundSet", p.getString("soundSet", "duck"))
+            .put("usageMode", p.getString("usageMode", "ledger"))
+            .put("peakMode", p.getString("peakMode", "default"))
+            .put("bubbleOn", p.getBoolean("bubbleOn", true))
+            .put("turnCostOn", p.getBoolean("turnCostOn", false))
+            .put("turnCostCloseMs", p.getLong("turnCostCloseMs", 5000L))
+            .toString()
     }
 
     private fun saveSize(json: String): String {
@@ -347,7 +376,8 @@ class DeepSeekPetService : Service() {
                 .putString("peakMode", o.optString("peakMode", "default"))
                 .putBoolean("bubbleOn", o.optBoolean("bubbleOn", true))
                 .putBoolean("turnCostOn", o.optBoolean("turnCostOn", false))
-                .putLong("turnCostCloseMs", o.optLong("turnCostCloseMs", 5000L)).apply()
+                .putLong("turnCostCloseMs", o.optLong("turnCostCloseMs", 5000L))
+                .apply()
         }
         return sizeJson()
     }
@@ -358,94 +388,84 @@ class DeepSeekPetService : Service() {
             path.startsWith("/dsh-whale/balance.json") -> balanceJson()
             path.startsWith("/dsh-whale/last-turn.json") -> WhaleUsageStore.lastTurnSnapshot(this@DeepSeekPetService)
             path.startsWith("/dsh-whale/size.json") -> sizeJson()
-            path.startsWith("/dsh-whale/audio.json") -> audioJson()
-            path.startsWith("/dsh-whale/bubble.json") -> getStoredJson(BUBBLE_PREFS, "config")
-            path.startsWith("/dsh-whale/roles.json") -> getStoredJson(ROLE_PREFS, "config")
+            path.startsWith("/dsh-whale/audio.json") -> JSONObject().put("groups", org.json.JSONArray()).put("fragments", org.json.JSONArray()).toString()
+            path.startsWith("/dsh-whale/bubble.json") -> "{}"
+            path.startsWith("/dsh-whale/roles.json") -> "{}"
             else -> "{}"
         }
 
         @JavascriptInterface
         fun putJson(path: String, body: String): String = when {
             path.startsWith("/dsh-whale/size.json") -> saveSize(body)
-            path.startsWith("/dsh-whale/bubble.json") -> { saveStoredJson(BUBBLE_PREFS, "config", body); body.ifBlank { "{}" } }
-            path.startsWith("/dsh-whale/roles.json") -> { saveStoredJson(ROLE_PREFS, "config", body); body.ifBlank { "{}" } }
+            path.startsWith("/dsh-whale/bubble.json") -> body.ifBlank { "{}" }
+            path.startsWith("/dsh-whale/roles.json") -> body.ifBlank { "{}" }
             else -> "{}"
         }
     }
 
-    private fun getStoredJson(name: String, key: String): String = getSharedPreferences(name, MODE_PRIVATE).getString(key, "{}") ?: "{}"
-
-    private fun saveStoredJson(name: String, key: String, value: String) {
-        getSharedPreferences(name, MODE_PRIVATE).edit().putString(key, value).apply()
-    }
-
-    private fun audioJson(): String = JSONObject().put("groups", org.json.JSONArray()
-        .put(JSONObject().put("id", "duck").put("name", "小黄鸭"))
-        .put(JSONObject().put("id", "fx1").put("name", "音效1")))
-        .put("fragments", org.json.JSONArray()
-            .put(JSONObject().put("id", "exp_orb").put("name", "Minecraft·经验球"))
-            .put(JSONObject().put("id", "end_a").put("name", "A"))).toString()
-
-    private inner class WhaleWebViewClient : WebViewClient() {
-        override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
-            val uri = request.url
-            val path = uri.path.orEmpty()
+    private inner class UpstreamWidgetWebViewClient : WebViewClient() {
+        override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?): WebResourceResponse? {
+            val uri = request?.url ?: return super.shouldInterceptRequest(view, request)
+            if (uri.host != "rikkahub.local") return super.shouldInterceptRequest(view, request)
+            val path = uri.path ?: return super.shouldInterceptRequest(view, request)
             if (!path.startsWith("/dsh-whale/")) return super.shouldInterceptRequest(view, request)
-            return when {
-                path == "/dsh-whale/image.png" -> assetResponse("DSniang1.png", "image/png")
-                path == "/dsh-whale/rua.gif" -> assetResponse("rua.gif", "image/gif")
-                path == "/dsh-whale/widget.js" -> assetResponse("whale-widget.js", "application/javascript; charset=utf-8")
-                path == "/dsh-whale/bubble-img.png" -> assetResponse(if (uri.getQueryParameter("id") == "money1") "bubble-money1.gif" else "bubble-petpet.gif", "image/gif")
-                path == "/dsh-whale/sound/press.mp3" -> assetResponse(if (uri.getQueryParameter("set") == "fx1") "D1.mp3" else "Ya1.mp3", "audio/mpeg")
-                path == "/dsh-whale/sound/release.mp3" -> assetResponse(if (uri.getQueryParameter("set") == "fx1") "D2.mp3" else "Ya2.mp3", "audio/mpeg")
-                path == "/dsh-whale/audio-fragment.wav" -> assetResponse(if (uri.getQueryParameter("id") == "end_a") "task-end-a.wav" else "minecraft-exp-orb.wav", "audio/wav")
-                else -> null
+
+            val (mime, asset) = when {
+                path == "/dsh-whale/widget.js" -> "application/javascript" to "dsh-whale/widget.js"
+                path == "/dsh-whale/image.png" -> "image/png" to "dsh-whale/DSniang1.png"
+                path == "/dsh-whale/rua.gif" -> "image/gif" to "dsh-whale/rua.gif"
+                path == "/dsh-whale/sound/press.mp3" -> "audio/mpeg" to if (uri.getQueryParameter("set") == "fx1") "dsh-whale/D1.mp3" else "dsh-whale/Ya1.mp3"
+                path == "/dsh-whale/sound/release.mp3" -> "audio/mpeg" to if (uri.getQueryParameter("set") == "fx1") "dsh-whale/D2.mp3" else "dsh-whale/Ya2.mp3"
+                path == "/dsh-whale/audio-fragment.wav" && uri.getQueryParameter("id") == "exp_orb" -> "audio/wav" to "dsh-whale/minecraft-exp-orb.wav"
+                path == "/dsh-whale/audio-fragment.wav" && uri.getQueryParameter("id") == "end_a" -> "audio/wav" to "dsh-whale/task-end-a.wav"
+                path == "/dsh-whale/bubble-img.png" -> "image/png" to "dsh-whale/DSH2.png"
+                else -> return super.shouldInterceptRequest(view, request)
             }
+
+            return runCatching {
+                val input = assets.open(asset)
+                WebResourceResponse(mime, null, input)
+            }.getOrNull()
         }
-
-        private fun assetResponse(name: String, mime: String): WebResourceResponse? = runCatching {
-            WebResourceResponse(mime, null, assets.open(name))
-        }.getOrNull()
     }
-
-    private class FrameRoot(context: Context) : android.widget.FrameLayout(context)
 
     override fun onDestroy() {
         refreshJob?.cancel()
         scope.cancel()
-        webView?.apply {
-            removeJavascriptInterface("RikkaHubWhaleBridge")
-            stopLoading()
-            destroy()
-        }
+        webView?.let { runCatching { it.stopLoading(); it.destroy() } }
         webView = null
         window?.let { runCatching { windowManager?.removeView(it) } }
         window = null
+        windowManager = null
+        params = null
+        stopForeground(STOP_FOREGROUND_REMOVE)
         super.onDestroy()
     }
 
     companion object {
-        private const val CHANNEL_ID = "deepseek_pet"
-        private const val NOTIFICATION_ID = 9137
-        private const val ACTION_START = "me.rerere.rikkahub.pet.START"
-        private const val ACTION_STOP = "me.rerere.rikkahub.pet.STOP"
+        private const val CHANNEL_ID = "deepseek_big_fish_pet"
+        private const val NOTIFICATION_ID = 18601
         private const val EXTRA_KEY = "deepseek_api_key"
+        private const val ACTION_START = "me.rerere.rikkahub.action.BIG_FISH_START"
+        private const val ACTION_STOP = "me.rerere.rikkahub.action.BIG_FISH_STOP"
         private const val BALANCE_URL = "https://api.deepseek.com/user/balance"
-        private const val LEDGER_PREFS = "deepseek_whale_ledger"
-        private const val SIZE_PREFS = "deepseek_whale_size"
-        private const val BUBBLE_PREFS = "deepseek_whale_bubble"
-        private const val ROLE_PREFS = "deepseek_whale_roles"
+        private const val LEDGER_PREFS = "rikkahub_big_fish_ledger"
+        private const val SIZE_PREFS = "rikkahub_big_fish_size"
 
         fun start(context: Context, apiKey: String) {
-            val intent = Intent(context, DeepSeekPetService::class.java).apply {
-                action = ACTION_START
-                putExtra(EXTRA_KEY, apiKey)
+            if (!Settings.canDrawOverlays(context) || apiKey.isBlank()) return
+            val intent = Intent(context, DeepSeekPetService::class.java)
+                .setAction(ACTION_START)
+                .putExtra(EXTRA_KEY, apiKey)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else {
+                context.startService(intent)
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent) else context.startService(intent)
         }
 
         fun stop(context: Context) {
-            context.startService(Intent(context, DeepSeekPetService::class.java).apply { action = ACTION_STOP })
+            context.startService(Intent(context, DeepSeekPetService::class.java).setAction(ACTION_STOP))
         }
     }
 }
