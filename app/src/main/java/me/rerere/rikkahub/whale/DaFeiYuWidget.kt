@@ -39,7 +39,7 @@ fun DaFeiYuWidget(modifier: Modifier = Modifier) {
                         "https://rikkahub.local/",
                         """
                         <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"></head>
-                        <body style="margin:0;background:transparent;overflow:hidden"><div id="root"><textarea aria-hidden="true" style="position:absolute;left:-9999px"></textarea></div>
+                        <body style="margin:0;background:transparent;overflow:visible;width:100%;height:100%;min-height:100%"><div id="root"><textarea aria-hidden="true" style="position:absolute;left:-9999px"></textarea></div>
                         <script>$script</script><script>$debugScript</script></body></html>
                         """.trimIndent(),
                         "text/html",
@@ -55,15 +55,19 @@ fun DaFeiYuWidget(modifier: Modifier = Modifier) {
 private class DaFeiYuWebView(context: android.content.Context) : WebView(context) {
     @Volatile
     var menuOpen = false
+
+    @Volatile
+    var interactiveOpen = false
+
     private var touchInside = false
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
             val edge = 360f * resources.displayMetrics.density
             val inWidget = event.x >= width - edge && event.y >= height - edge
-            touchInside = inWidget || menuOpen
+            touchInside = inWidget || menuOpen || interactiveOpen
             if (!touchInside) return false
-        } else if (!touchInside && !menuOpen) {
+        } else if (!touchInside && !menuOpen && !interactiveOpen) {
             return false
         }
         val handled = super.onTouchEvent(event)
@@ -78,6 +82,11 @@ private class MenuStateBridge(private val webView: DaFeiYuWebView) {
     @JavascriptInterface
     fun setMenuOpen(open: Boolean) {
         webView.menuOpen = open
+    }
+
+    @JavascriptInterface
+    fun setInteractive(open: Boolean) {
+        webView.interactiveOpen = open
     }
 }
 
