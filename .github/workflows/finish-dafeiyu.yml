@@ -138,25 +138,59 @@ jobs:
         shell: python
         run: |
           from pathlib import Path
+          import re
+
           p = Path('app/src/main/java/me/rerere/rikkahub/RouteActivity.kt')
           s = p.read_text()
+
           imp = 'import me.rerere.rikkahub.whale.DaFeiYuWidget\n'
           if imp not in s:
               marker = 'import me.rerere.rikkahub.utils.openUsageAccessSettings\n'
+              if marker not in s:
+                  raise SystemExit('RouteActivity import marker not found')
               s = s.replace(marker, marker + imp, 1)
-          width_imp = 'import androidx.compose.foundation.layout.width\n'
-          if width_imp not in s:
-              marker = 'import androidx.compose.foundation.layout.padding\n'
-              s = s.replace(marker, marker + width_imp, 1)
-          height_imp = 'import androidx.compose.foundation.layout.height\n'
-          if height_imp not in s:
-              marker = 'import androidx.compose.foundation.layout.padding\n'
-              s = s.replace(marker, marker + height_imp, 1)
-          old = '''                                ChatPage(\n                                    id = Uuid.parse(key.id),\n                                    text = key.text,\n                                    files = key.files.map { it.toUri() },\n                                    nodeId = key.nodeId?.let { Uuid.parse(it) }\n                                )'''
-          new = '''                                Box(modifier = Modifier.fillMaxSize()) {\n                                    ChatPage(\n                                        id = Uuid.parse(key.id),\n                                        text = key.text,\n                                        files = key.files.map { it.toUri() },\n                                        nodeId = key.nodeId?.let { Uuid.parse(it) }\n                                    )\n                                    DaFeiYuWidget(\n                                        modifier = Modifier\n                                            .align(Alignment.BottomEnd)\n                                            .width(320.dp)\n                                            .height(320.dp)\n                                    )\n                                }'''
-          if old not in s:
-              raise SystemExit('ChatPage anchor not found; aborting without commit')
-          s = s.replace(old, new, 1)
+
+          for imp, marker in [
+              ('import androidx.compose.foundation.layout.width\n', 'import androidx.compose.foundation.layout.padding\n'),
+              ('import androidx.compose.foundation.layout.height\n', 'import androidx.compose.foundation.layout.padding\n'),
+          ]:
+              if imp not in s:
+                  if marker not in s:
+                      raise SystemExit(f'RouteActivity layout import marker not found: {imp.strip()}')
+                  s = s.replace(marker, marker + imp, 1)
+
+          if 'DaFeiYuWidget(' not in s:
+              pattern = re.compile(
+                  r'(?P<indent>\s*)ChatPage\(\s*'
+                  r'id = Uuid\.parse\(key\.id\),\s*'
+                  r'text = key\.text,\s*'
+                  r'files = key\.files\.map \{ it\.toUri\(\) \},\s*'
+                  r'nodeId = key\.nodeId\?\.let \{ Uuid\.parse\(it\) \}\s*'
+                  r'\)',
+                  re.MULTILINE,
+              )
+              match = pattern.search(s)
+              if not match:
+                  raise SystemExit('ChatPage anchor not found; aborting without commit')
+              indent = match.group('indent')
+              replacement = (
+                  f'{indent}Box(modifier = Modifier.fillMaxSize()) {{\n'
+                  f'{indent}    ChatPage(\n'
+                  f'{indent}        id = Uuid.parse(key.id),\n'
+                  f'{indent}        text = key.text,\n'
+                  f'{indent}        files = key.files.map {{ it.toUri() }},\n'
+                  f'{indent}        nodeId = key.nodeId?.let {{ Uuid.parse(it) }}\n'
+                  f'{indent}    )\n'
+                  f'{indent}    DaFeiYuWidget(\n'
+                  f'{indent}        modifier = Modifier\n'
+                  f'{indent}            .align(Alignment.BottomEnd)\n'
+                  f'{indent}            .width(320.dp)\n'
+                  f'{indent}            .height(320.dp)\n'
+                  f'{indent}    )\n'
+                  f'{indent}}}'
+              )
+              s = s[:match.start()] + replacement + s[match.end():]
+
           p.write_text(s)
 
       - name: Build debug APK
