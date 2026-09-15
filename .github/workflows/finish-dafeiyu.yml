@@ -14,6 +14,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          submodules: recursive
 
       - name: Setup Node
         uses: actions/setup-node@v6
@@ -149,10 +151,17 @@ jobs:
           s = s.replace(old, new, 1)
           p.write_text(s)
 
-      - name: Compile Kotlin
+      - name: Build debug APK
         run: |
           chmod +x ./gradlew
-          ./gradlew --no-daemon :app:compileDebugKotlin -x processDebugGoogleServices
+          ./gradlew --no-daemon :app:assembleDebug -x processDebugGoogleServices
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: rikkahub-dafeiyu-debug
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
 
       - name: Commit completed port
         shell: bash
