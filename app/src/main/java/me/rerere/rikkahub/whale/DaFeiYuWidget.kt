@@ -67,4 +67,4 @@ private const val DaFeiYuWidgetHtml = """
 <script src="https://raw.githubusercontent.com/MeteorNOX/DeepSeek-Balance-Whale-Widget/main/assets/whale-widget.js"></script>
 </body></html>
 """
-// Retry after skipping the repository's optional Google Services config during compile.
+// Trigger the corrected build workflow.
