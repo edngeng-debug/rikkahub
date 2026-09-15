@@ -51,7 +51,10 @@ fun DaFeiYuSettingsPage() {
         containerColor = CustomColors.topBarColors.containerColor,
     ) { innerPadding ->
         LazyColumn(
-            contentPadding = innerPadding + PaddingValues(16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(innerPadding),
+            contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
             item {
@@ -60,21 +63,11 @@ fun DaFeiYuSettingsPage() {
                     modifier = Modifier.padding(horizontal = 4.dp),
                 )
             }
-            item {
-                ScaleSetting("大肥鱼", settings.char) { v -> update { it.copy(char = v) } }
-            }
-            item {
-                ScaleSetting("气泡", settings.bubble) { v -> update { it.copy(bubble = v) } }
-            }
-            item {
-                ScaleSetting("标题", settings.label) { v -> update { it.copy(label = v) } }
-            }
-            item {
-                ScaleSetting("余额数字", settings.amount) { v -> update { it.copy(amount = v) } }
-            }
-            item {
-                ScaleSetting("提示文字", settings.hint) { v -> update { it.copy(hint = v) } }
-            }
+            item { ScaleSetting("大肥鱼", settings.char) { v -> update { it.copy(char = v) } } }
+            item { ScaleSetting("气泡", settings.bubble) { v -> update { it.copy(bubble = v) } } }
+            item { ScaleSetting("标题", settings.label) { v -> update { it.copy(label = v) } } }
+            item { ScaleSetting("余额数字", settings.amount) { v -> update { it.copy(amount = v) } } }
+            item { ScaleSetting("提示文字", settings.hint) { v -> update { it.copy(hint = v) } } }
             item {
                 Button(
                     onClick = {
