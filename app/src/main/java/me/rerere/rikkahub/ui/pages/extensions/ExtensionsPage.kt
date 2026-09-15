@@ -57,6 +57,12 @@ fun ExtensionsPage() {
                     title = { Text(stringResource(R.string.extensions_page_section_extensions)) },
                 ) {
                     item(
+                        onClick = { navController.navigate(Screen.DaFeiYuSettings) },
+                        leadingContent = { Icon(HugeIcons.Puzzle, null) },
+                        headlineContent = { Text("大肥鱼") },
+                        supportingContent = { Text("大肥鱼挂件与显示设置") },
+                    )
+                    item(
                         onClick = { navController.navigate(Screen.QuickMessages) },
                         leadingContent = { Icon(HugeIcons.Zap, null) },
                         headlineContent = { Text(stringResource(R.string.assistant_page_quick_messages)) },
