@@ -144,6 +144,10 @@ jobs:
           if imp not in s:
               marker = 'import me.rerere.rikkahub.utils.openUsageAccessSettings\n'
               s = s.replace(marker, marker + imp, 1)
+          width_imp = 'import androidx.compose.foundation.layout.width\n'
+          if width_imp not in s:
+              marker = 'import androidx.compose.foundation.layout.padding\n'
+              s = s.replace(marker, marker + width_imp, 1)
           old = '''                                ChatPage(\n                                    id = Uuid.parse(key.id),\n                                    text = key.text,\n                                    files = key.files.map { it.toUri() },\n                                    nodeId = key.nodeId?.let { Uuid.parse(it) }\n                                )'''
           new = '''                                Box(modifier = Modifier.fillMaxSize()) {\n                                    ChatPage(\n                                        id = Uuid.parse(key.id),\n                                        text = key.text,\n                                        files = key.files.map { it.toUri() },\n                                        nodeId = key.nodeId?.let { Uuid.parse(it) }\n                                    )\n                                    DaFeiYuWidget(\n                                        modifier = Modifier\n                                            .align(Alignment.BottomEnd)\n                                            .width(320.dp)\n                                            .height(320.dp)\n                                    )\n                                }'''
           if old not in s:
