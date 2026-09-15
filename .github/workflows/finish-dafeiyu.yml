@@ -51,27 +51,21 @@ jobs:
           s = s.replace('        analytics.logEvent("ai_tool_approval", null)\n', '')
           s = s.replace('        analytics.logEvent("ai_tool_answer", null)\n', '')
           vm.write_text(s)
+
           mod = Path('app/src/main/java/me/rerere/rikkahub/di/ViewModelModule.kt')
           s = mod.read_text().replace('            analytics = get(),\n', '')
           mod.write_text(s)
 
           route = Path('app/src/main/java/me/rerere/rikkahub/RouteActivity.kt')
           s = route.read_text()
-          # The checked-in RouteActivity normally uses fillMaxSize(). For the build-only
-          # integration keep the WebView host small so it cannot sit over the whole app.
+          # Keep the checked-in integration unchanged. The build-only host is deliberately
+          # limited to the bottom-right 320dp area so the WebView cannot cover RikkaHub.
           old = '''                                    DaFeiYuWidget(\n                                        modifier = Modifier.fillMaxSize()\n                                    )'''
-          new = '''                                    DaFeiYuWidget(\n                                        modifier = Modifier\n                                            .align(Alignment.BottomEnd)\n                                            .width(320.dp)\n                                            .height(320.dp)\n                                    )'''
+          new = '''                                    DaFeiYuWidget(\n                                        modifier = Modifier\n                                            .align(Alignment.BottomEnd)\n                                            .then(Modifier.width(320.dp).height(320.dp))\n                                    )'''
           if old in s:
               s = s.replace(old, new, 1)
-          elif '.align(Alignment.BottomEnd).width(320.dp).height(320.dp)' not in s and 'DaFeiYuWidget(' in s:
+          elif '.then(Modifier.width(320.dp).height(320.dp))' not in s and 'DaFeiYuWidget(' in s:
               raise SystemExit('DaFeiYuWidget layout anchor not found')
-          # The build-only layout uses width()/height(); add imports only when needed.
-          if '.width(320.dp)' in s and 'import androidx.compose.foundation.layout.width\n' not in s:
-              marker = 'import androidx.compose.foundation.layout.fillMaxSize\n'
-              if marker in s:
-                  s = s.replace(marker, marker + 'import androidx.compose.foundation.layout.height\nimport androidx.compose.foundation.layout.width\n', 1)
-              else:
-                  raise SystemExit('fillMaxSize import anchor not found')
           route.write_text(s)
 
       - name: Build debug APK
