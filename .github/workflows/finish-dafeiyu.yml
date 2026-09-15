@@ -4,6 +4,9 @@ on:
   push:
     paths:
       - 'app/src/main/java/me/rerere/rikkahub/whale/DaFeiYuWidget.kt'
+      - 'app/src/main/java/me/rerere/rikkahub/whale/DaFeiYuSettings.kt'
+      - 'app/src/main/java/me/rerere/rikkahub/ui/pages/extensions/DaFeiYuSettingsPage.kt'
+      - 'app/src/main/java/me/rerere/rikkahub/ui/pages/extensions/ExtensionsPage.kt'
       - 'app/src/main/assets/dafeiyu/debug.js'
       - '.github/workflows/finish-dafeiyu.yml'
 
@@ -37,7 +40,7 @@ jobs:
         working-directory: web-ui
         run: pnpm install --frozen-lockfile
 
-      - name: Patch build-only dependencies
+      - name: Patch build-only dependencies and register 大肥鱼 settings route
         shell: python
         run: |
           from pathlib import Path
@@ -55,6 +58,33 @@ jobs:
           mod = Path('app/src/main/java/me/rerere/rikkahub/di/ViewModelModule.kt')
           s = mod.read_text().replace('            analytics = get(),\n', '')
           mod.write_text(s)
+
+          route = Path('app/src/main/java/me/rerere/rikkahub/RouteActivity.kt')
+          s = route.read_text()
+          if 'import me.rerere.rikkahub.ui.pages.extensions.DaFeiYuSettingsPage' not in s:
+              anchor = 'import me.rerere.rikkahub.ui.pages.extensions.ExtensionsPage\n'
+              s = s.replace(anchor, anchor + 'import me.rerere.rikkahub.ui.pages.extensions.DaFeiYuSettingsPage\n')
+          if 'entry<Screen.DaFeiYuSettings>' not in s:
+              anchor = '''                            entry<Screen.Extensions> {
+                                ExtensionsPage()
+                            }
+'''
+              replacement = anchor + '''
+                            entry<Screen.DaFeiYuSettings> {
+                                DaFeiYuSettingsPage()
+                            }
+'''
+              s = s.replace(anchor, replacement)
+          if 'data object DaFeiYuSettings : Screen' not in s:
+              anchor = '''    @Serializable
+    data object Extensions : Screen
+'''
+              replacement = anchor + '''
+    @Serializable
+    data object DaFeiYuSettings : Screen
+'''
+              s = s.replace(anchor, replacement)
+          route.write_text(s)
 
       - name: Build debug APK
         run: |
@@ -74,6 +104,6 @@ jobs:
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot].users.noreply.github.com'
-          git add app/src/main/java/me/rerere/rikkahub/ui/pages/chat/ChatVM.kt app/src/main/java/me/rerere/rikkahub/di/ViewModelModule.kt
-          git commit -m 'fix: finish 大肥鱼 performance optimization [dafeiyu-finished]' || exit 0
+          git add app/src/main/java/me/rerere/rikkahub/ui/pages/chat/ChatVM.kt app/src/main/java/me/rerere/rikkahub/di/ViewModelModule.kt app/src/main/java/me/rerere/rikkahub/RouteActivity.kt
+          git commit -m 'fix: finish 大肥鱼 settings integration [dafeiyu-finished]' || exit 0
           git push
