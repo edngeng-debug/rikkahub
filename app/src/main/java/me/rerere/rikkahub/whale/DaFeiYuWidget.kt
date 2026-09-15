@@ -3,12 +3,11 @@ package me.rerere.rikkahub.whale
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.graphics.Color
+import android.graphics.RectF
 import android.graphics.drawable.ColorDrawable
 import android.os.Build
 import android.view.Gravity
 import android.view.MotionEvent
-import android.view.View
-import android.view.ViewGroup
 import android.webkit.JavascriptInterface
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
@@ -22,8 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalView
 import java.io.ByteArrayInputStream
 
-private const val POPUP_DP = 260
-private const val HIT_DP = 170
+private const val POPUP_DP = 360
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
@@ -37,7 +35,6 @@ fun DaFeiYuWidget(modifier: Modifier = Modifier) {
         } else {
             val density = context.resources.displayMetrics.density
             val popupSize = (POPUP_DP * density).toInt()
-            val hitSize = (HIT_DP * density).toInt()
             val decor = activity.window.decorView
             val webView = DaFeiYuWebView(context)
             webView.setBackgroundColor(Color.TRANSPARENT)
@@ -65,12 +62,7 @@ fun DaFeiYuWidget(modifier: Modifier = Modifier) {
                 null,
             )
 
-            val popup = PopupWindow(
-                webView,
-                popupSize,
-                popupSize,
-                false,
-            ).apply {
+            val popup = PopupWindow(webView, popupSize, popupSize, false).apply {
                 setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
                 isFocusable = false
                 isOutsideTouchable = true
@@ -84,12 +76,9 @@ fun DaFeiYuWidget(modifier: Modifier = Modifier) {
                 setSplitTouchEnabled(true)
                 setTouchInterceptor { _, event ->
                     if (webView.menuOpen || webView.interactiveOpen) return@setTouchInterceptor false
-                    val x = event.x
-                    val y = event.y
-                    val inWidget = x >= popupSize - hitSize && y >= popupSize - hitSize
+                    val p = webView.hitRect
+                    val inWidget = p.contains(event.x, event.y)
                     if (inWidget) return@setTouchInterceptor false
-                    // PopupWindow covers only a small corner, but even that transparent area must not
-                    // steal RikkaHub's normal Compose input. Forward it to the Activity with screen coords.
                     val copy = MotionEvent.obtain(event)
                     try {
                         copy.offsetLocation(event.rawX - event.x, event.rawY - event.y)
@@ -110,11 +99,8 @@ fun DaFeiYuWidget(modifier: Modifier = Modifier) {
                 }
                 val x = (w - popupSize).coerceAtLeast(0)
                 val y = (h - popupSize).coerceAtLeast(0)
-                if (!popup.isShowing) {
-                    popup.showAtLocation(decor, Gravity.TOP or Gravity.START, x, y)
-                } else {
-                    popup.update(x, y, popupSize, popupSize)
-                }
+                if (!popup.isShowing) popup.showAtLocation(decor, Gravity.TOP or Gravity.START, x, y)
+                else popup.update(x, y, popupSize, popupSize)
             }
 
             decor.post { show() }
@@ -124,20 +110,25 @@ fun DaFeiYuWidget(modifier: Modifier = Modifier) {
             }
         }
     }
-    // The actual WebView lives in a PopupWindow. Keeping this Compose node empty is intentional:
-    // an AndroidView here would create a full-screen native hit target and block RikkaHub.
     Box(modifier = Modifier)
 }
 
 private class DaFeiYuWebView(context: android.content.Context) : WebView(context) {
     @Volatile var menuOpen = false
     @Volatile var interactiveOpen = false
+    @Volatile var hitRect = RectF(0f, 0f, 0f, 0f)
 }
 
 private class MenuStateBridge(private val webView: DaFeiYuWebView) {
     @JavascriptInterface fun setMenuOpen(open: Boolean) { webView.menuOpen = open }
     @JavascriptInterface fun setInteractive(open: Boolean) { webView.interactiveOpen = open }
-    @JavascriptInterface fun setWidgetRect(left: Float, top: Float, right: Float, bottom: Float) { }
+    @JavascriptInterface fun setWidgetRect(left: Float, top: Float, right: Float, bottom: Float, viewportWidth: Float, viewportHeight: Float) {
+        val vw = viewportWidth.takeIf { it > 0f } ?: return
+        val vh = viewportHeight.takeIf { it > 0f } ?: return
+        val sx = webView.width.toFloat() / vw
+        val sy = webView.height.toFloat() / vh
+        webView.hitRect = RectF(left * sx, top * sy, right * sx, bottom * sy)
+    }
 }
 
 private class DaFeiYuWebViewClient(private val context: android.content.Context) : WebViewClient() {
@@ -154,12 +145,6 @@ private class DaFeiYuWebViewClient(private val context: android.content.Context)
         }
     }
 
-    private fun asset(path: String, mime: String, encoding: String?): WebResourceResponse =
-        WebResourceResponse(mime, encoding, context.assets.open(path))
-
-    private fun json(body: String) = WebResourceResponse(
-        "application/json",
-        "UTF-8",
-        ByteArrayInputStream(body.toByteArray(Charsets.UTF_8)),
-    )
+    private fun asset(path: String, mime: String, encoding: String?): WebResourceResponse = WebResourceResponse(mime, encoding, context.assets.open(path))
+    private fun json(body: String) = WebResourceResponse("application/json", "UTF-8", ByteArrayInputStream(body.toByteArray(Charsets.UTF_8)))
 }
