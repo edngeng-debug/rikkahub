@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="color-scheme" content="light">
+<style>
+html,body,#root{margin:0;width:100%;height:100%;background:transparent;overflow:hidden}
+body{touch-action:none}
+#root textarea{position:absolute;left:-10000px;top:-10000px;width:1px;height:1px;opacity:0}
+</style>
+</head>
+<body>
+<div id="root"><textarea aria-label="composer"></textarea></div>
+<script>
+(function(){
+  var nativeFetch=window.fetch.bind(window);
+  function nativeResponse(body,type){
+    return new Response(body,{status:200,headers:{'Content-Type':type||'application/json; charset=utf-8'}});
+  }
+  window.fetch=async function(input,init){
+    var url=typeof input==='string'?input:(input&&input.url)||'';
+    var method=((init&&init.method)||((input&&input.method)||'GET')).toUpperCase();
+    if(url.indexOf('/dsh-whale/')!==-1 && window.RikkaHubWhaleBridge){
+      var path=url.replace(/^https?:\/\/[^/]+/,'');
+      if(method==='PUT'||method==='POST'){
+        var body=(init&&init.body)||'';
+        return nativeResponse(window.RikkaHubWhaleBridge.putJson(path,String(body)));
+      }
+      return nativeResponse(window.RikkaHubWhaleBridge.getJson(path));
+    }
+    return nativeFetch(input,init);
+  };
+})();
+</script>
+<script src="whale-widget.js"></script>
+</body>
+</html>
