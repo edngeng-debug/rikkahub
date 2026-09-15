@@ -9,6 +9,7 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -30,7 +31,7 @@ fun DaFeiYuWidget(modifier: Modifier = Modifier) {
     Box(modifier = modifier) {
         if (ready) {
             AndroidView(
-                modifier = Modifier,
+                modifier = Modifier.fillMaxSize(),
                 factory = { context ->
                     DaFeiYuWebView(context).apply {
                         setBackgroundColor(Color.TRANSPARENT)
@@ -93,9 +94,7 @@ private class DaFeiYuWebView(context: android.content.Context) : WebView(context
                 touchInside = interactiveOpen || isInsideWidget(event.x, event.y)
                 if (!touchInside) return false
             }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                if (!touchInside) return false
-            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> if (!touchInside) return false
             else -> if (!touchInside) return false
         }
         val handled = super.onTouchEvent(event)
@@ -109,8 +108,7 @@ private class DaFeiYuWebView(context: android.content.Context) : WebView(context
         if (r[2] <= r[0] || r[3] <= r[1]) return false
         val sx = if (v[0] > 1f) width.toFloat() / v[0] else resources.displayMetrics.density
         val sy = if (v[1] > 1f) height.toFloat() / v[1] else resources.displayMetrics.density
-        val l = r[0] * sx; val t = r[1] * sy; val rr = r[2] * sx; val b = r[3] * sy
-        return x >= l && x <= rr && y >= t && y <= b
+        return x >= r[0] * sx && x <= r[2] * sx && y >= r[1] * sy && y <= r[3] * sy
     }
 }
 
