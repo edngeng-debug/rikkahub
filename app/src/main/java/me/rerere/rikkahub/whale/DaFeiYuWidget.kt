@@ -8,6 +8,7 @@ import android.graphics.drawable.ColorDrawable
 import android.os.Build
 import android.view.Gravity
 import android.view.MotionEvent
+import android.view.View
 import android.webkit.JavascriptInterface
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
@@ -20,8 +21,9 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalView
 import java.io.ByteArrayInputStream
-
-private const val POPUP_DP = 360
+import kotlin.math.ceil
+import kotlin.math.max
+import kotlin.math.min
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
@@ -33,8 +35,6 @@ fun DaFeiYuWidget(modifier: Modifier = Modifier) {
         if (activity == null) {
             onDispose { }
         } else {
-            val density = context.resources.displayMetrics.density
-            val popupSize = (POPUP_DP * density).toInt()
             val decor = activity.window.decorView
             val webView = DaFeiYuWebView(context)
             webView.setBackgroundColor(Color.TRANSPARENT)
@@ -45,7 +45,40 @@ fun DaFeiYuWidget(modifier: Modifier = Modifier) {
             webView.settings.mediaPlaybackRequiresUserGesture = false
             webView.isVerticalScrollBarEnabled = false
             webView.isHorizontalScrollBarEnabled = false
-            webView.addJavascriptInterface(MenuStateBridge(webView), "RikkaDaFeiYu")
+
+            // The renderer is a transparent full-screen window, but it is explicitly
+            // non-touchable. A separate, tiny touch window below forwards only the
+            // actual widget hit area to this WebView. This prevents the WebView from
+            // becoming a giant invisible touch shield over RikkaHub.
+            val renderPopup = PopupWindow(webView, -1, -1, false).apply {
+                setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+                isTouchable = false
+                isFocusable = false
+                isOutsideTouchable = false
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    setIsLaidOutInScreen(true)
+                    setIsClippedToScreen(false)
+                }
+                setAttachedInDecor(true)
+            }
+
+            val touchView = TouchRelayView(context, webView)
+            val touchPopup = PopupWindow(touchView, 1, 1, false).apply {
+                setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+                isTouchable = true
+                isFocusable = false
+                isOutsideTouchable = true
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    setTouchModal(false)
+                    setIsLaidOutInScreen(true)
+                    setIsClippedToScreen(true)
+                }
+                setAttachedInDecor(true)
+            }
+
+            val relay = TouchRelayController(decor, webView, renderPopup, touchPopup, touchView)
+            touchView.controller = relay
+            webView.addJavascriptInterface(MenuStateBridge(relay), "RikkaDaFeiYu")
             webView.webViewClient = DaFeiYuWebViewClient(context)
 
             val script = context.assets.open("dafeiyu/whale-widget.js").bufferedReader().use { it.readText() }
@@ -62,34 +95,6 @@ fun DaFeiYuWidget(modifier: Modifier = Modifier) {
                 null,
             )
 
-            val popup = PopupWindow(webView, popupSize, popupSize, false).apply {
-                setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-                isFocusable = false
-                isOutsideTouchable = true
-                isTouchable = true
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    setTouchModal(false)
-                    setIsLaidOutInScreen(true)
-                    setIsClippedToScreen(true)
-                }
-                setAttachedInDecor(true)
-                setSplitTouchEnabled(true)
-                setTouchInterceptor { _, event ->
-                    if (webView.menuOpen || webView.interactiveOpen) return@setTouchInterceptor false
-                    val p = webView.hitRect
-                    val inWidget = p.contains(event.x, event.y)
-                    if (inWidget) return@setTouchInterceptor false
-                    val copy = MotionEvent.obtain(event)
-                    try {
-                        copy.offsetLocation(event.rawX - event.x, event.rawY - event.y)
-                        activity.dispatchTouchEvent(copy)
-                    } finally {
-                        copy.recycle()
-                    }
-                    true
-                }
-            }
-
             fun show() {
                 val w = decor.width
                 val h = decor.height
@@ -97,37 +102,146 @@ fun DaFeiYuWidget(modifier: Modifier = Modifier) {
                     decor.post { show() }
                     return
                 }
-                val x = (w - popupSize).coerceAtLeast(0)
-                val y = (h - popupSize).coerceAtLeast(0)
-                if (!popup.isShowing) popup.showAtLocation(decor, Gravity.TOP or Gravity.START, x, y)
-                else popup.update(x, y, popupSize, popupSize)
+                if (!renderPopup.isShowing) {
+                    renderPopup.showAtLocation(decor, Gravity.TOP or Gravity.START, 0, 0)
+                } else {
+                    renderPopup.update(0, 0, w, h)
+                }
+                if (!touchPopup.isShowing) {
+                    touchPopup.showAtLocation(decor, Gravity.TOP or Gravity.START, 0, 0)
+                }
+                relay.applyPending()
             }
 
             decor.post { show() }
             onDispose {
-                try { popup.dismiss() } catch (_: Throwable) {}
+                try { touchPopup.dismiss() } catch (_: Throwable) {}
+                try { renderPopup.dismiss() } catch (_: Throwable) {}
                 try { webView.stopLoading(); webView.destroy() } catch (_: Throwable) {}
             }
         }
     }
-    Box(modifier = Modifier)
+    Box(modifier = modifier)
 }
 
-private class DaFeiYuWebView(context: android.content.Context) : WebView(context) {
-    @Volatile var menuOpen = false
-    @Volatile var interactiveOpen = false
-    @Volatile var hitRect = RectF(0f, 0f, 0f, 0f)
+private class DaFeiYuWebView(context: android.content.Context) : WebView(context)
+
+private class TouchRelayView(
+    context: android.content.Context,
+    private val target: DaFeiYuWebView,
+) : View(context) {
+    var controller: TouchRelayController? = null
+
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        val c = controller ?: return false
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) c.beginGesture()
+        val copy = MotionEvent.obtain(event)
+        try {
+            copy.offsetLocation(c.forwardOffsetX, c.forwardOffsetY)
+            target.dispatchTouchEvent(copy)
+        } finally {
+            copy.recycle()
+        }
+        if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
+            c.endGesture()
+        }
+        return true
+    }
 }
 
-private class MenuStateBridge(private val webView: DaFeiYuWebView) {
-    @JavascriptInterface fun setMenuOpen(open: Boolean) { webView.menuOpen = open }
-    @JavascriptInterface fun setInteractive(open: Boolean) { webView.interactiveOpen = open }
+private class TouchRelayController(
+    private val decor: View,
+    private val webView: DaFeiYuWebView,
+    private val renderPopup: PopupWindow,
+    private val touchPopup: PopupWindow,
+    private val touchView: TouchRelayView,
+) {
+    @Volatile private var widgetRect = RectF(0f, 0f, 1f, 1f)
+    @Volatile private var interactive = false
+    @Volatile private var gestureActive = false
+    @Volatile private var pendingApply = false
+
+    var forwardOffsetX: Float = 0f
+        private set
+    var forwardOffsetY: Float = 0f
+        private set
+
+    fun setWidgetRect(left: Float, top: Float, right: Float, bottom: Float, viewportWidth: Float, viewportHeight: Float) {
+        if (viewportWidth <= 0f || viewportHeight <= 0f) return
+        val w = max(1, decor.width).toFloat()
+        val h = max(1, decor.height).toFloat()
+        val sx = w / viewportWidth
+        val sy = h / viewportHeight
+        val l = left * sx
+        val t = top * sy
+        val r = right * sx
+        val b = bottom * sy
+        if (r <= l || b <= t) return
+        widgetRect = RectF(l, t, r, b)
+        applyPending()
+    }
+
+    fun setMenuOpen(open: Boolean) {
+        interactive = open || interactive
+        if (!open) interactive = false
+        applyPending()
+    }
+
+    fun setInteractive(open: Boolean) {
+        interactive = open
+        applyPending()
+    }
+
+    fun beginGesture() {
+        gestureActive = true
+    }
+
+    fun endGesture() {
+        gestureActive = false
+        applyPending = true
+        applyPending()
+    }
+
+    fun applyPending() {
+        if (gestureActive || !touchPopup.isShowing) {
+            pendingApply = true
+            return
+        }
+        pendingApply = false
+        val w = max(1, decor.width)
+        val h = max(1, decor.height)
+        if (interactive) {
+            forwardOffsetX = 0f
+            forwardOffsetY = 0f
+            touchPopup.update(0, 0, w, h)
+            touchView.layoutParams = touchView.layoutParams?.apply {
+                width = w
+                height = h
+            } ?: android.view.ViewGroup.LayoutParams(w, h)
+        } else {
+            val l = widgetRect.left.toInt().coerceIn(0, max(0, w - 1))
+            val t = widgetRect.top.toInt().coerceIn(0, max(0, h - 1))
+            val r = ceil(widgetRect.right).toInt().coerceIn(l + 1, w)
+            val b = ceil(widgetRect.bottom).toInt().coerceIn(t + 1, h)
+            val pw = max(1, r - l)
+            val ph = max(1, b - t)
+            forwardOffsetX = l.toFloat()
+            forwardOffsetY = t.toFloat()
+            touchPopup.update(l, t, pw, ph)
+            touchView.layoutParams = touchView.layoutParams?.apply {
+                width = pw
+                height = ph
+            } ?: android.view.ViewGroup.LayoutParams(pw, ph)
+        }
+        touchView.requestLayout()
+    }
+}
+
+private class MenuStateBridge(private val relay: TouchRelayController) {
+    @JavascriptInterface fun setMenuOpen(open: Boolean) { relay.setMenuOpen(open) }
+    @JavascriptInterface fun setInteractive(open: Boolean) { relay.setInteractive(open) }
     @JavascriptInterface fun setWidgetRect(left: Float, top: Float, right: Float, bottom: Float, viewportWidth: Float, viewportHeight: Float) {
-        val vw = viewportWidth.takeIf { it > 0f } ?: return
-        val vh = viewportHeight.takeIf { it > 0f } ?: return
-        val sx = webView.width.toFloat() / vw
-        val sy = webView.height.toFloat() / vh
-        webView.hitRect = RectF(left * sx, top * sy, right * sx, bottom * sy)
+        relay.setWidgetRect(left, top, right, bottom, viewportWidth, viewportHeight)
     }
 }
 
