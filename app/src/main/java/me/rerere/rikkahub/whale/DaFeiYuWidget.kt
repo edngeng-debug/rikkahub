@@ -8,13 +8,17 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import java.io.ByteArrayInputStream
 
@@ -28,10 +32,15 @@ fun DaFeiYuWidget(modifier: Modifier = Modifier) {
         ready = true
     }
 
+    // The host may occupy the whole chat screen, but the actual Android WebView must not.
+    // A full-screen WebView was intercepting the rest of RikkaHub even when its HTML was transparent.
     Box(modifier = modifier) {
         if (ready) {
             AndroidView(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .width(320.dp)
+                    .height(320.dp),
                 factory = { context ->
                     DaFeiYuWebView(context).apply {
                         setBackgroundColor(Color.TRANSPARENT)
