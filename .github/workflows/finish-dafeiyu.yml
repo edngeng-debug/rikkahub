@@ -48,7 +48,6 @@ jobs:
           s = s.replace('        analytics.logEvent("ai_tool_approval", null)\n', '')
           s = s.replace('        analytics.logEvent("ai_tool_answer", null)\n', '')
           vm.write_text(s)
-
           mod = Path('app/src/main/java/me/rerere/rikkahub/di/ViewModelModule.kt')
           s = mod.read_text().replace('            analytics = get(),\n', '')
           mod.write_text(s)
@@ -57,13 +56,16 @@ jobs:
         shell: python
         run: |
           from pathlib import Path
+          import re
           p = Path('app/src/main/java/me/rerere/rikkahub/RouteActivity.kt')
           s = p.read_text()
-          s = s.replace('import androidx.compose.ui.unit.dp\n', 'import androidx.compose.ui.unit.dp\n')
-          s = s.replace('                                        modifier = Modifier\n                                            .align(Alignment.BottomEnd)\n                                            .width(320.dp)\n                                            .height(320.dp)\n', '                                        modifier = Modifier.fillMaxSize()\n')
           s = s.replace('import androidx.compose.foundation.layout.height\n', '')
           s = s.replace('import androidx.compose.foundation.layout.width\n', '')
-          p.write_text(s)
+          pattern = r'modifier = Modifier\s*\.align\(Alignment\.BottomEnd\)\s*\.width\(320\.dp\)\s*\.height\(320\.dp\)'
+          s2, n = re.subn(pattern, 'modifier = Modifier.fillMaxSize()', s, count=1)
+          if n != 1:
+              raise SystemExit('RouteActivity 大肥鱼 modifier anchor not found')
+          p.write_text(s2)
 
       - name: Build debug APK
         run: |
