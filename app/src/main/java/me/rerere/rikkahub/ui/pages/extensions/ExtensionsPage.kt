@@ -95,8 +95,8 @@ fun ExtensionsPage() {
                             }
                         },
                         leadingContent = { Icon(HugeIcons.Zap, null) },
-                        headlineContent = { Text("🐋 DeepSeek 娘桌宠") },
-                        supportingContent = { Text("直接使用原版小鲸鱼资源与交互；点击、长按、拖动均可互动") },
+                        headlineContent = { Text("🐟 DeepSeek 娘大肥鱼") },
+                        supportingContent = { Text("使用原版大肥鱼资源；点击、长按、拖动均可互动") },
                     )
                     item(
                         onClick = { navController.navigate(Screen.QuickMessages) },
@@ -119,7 +119,7 @@ fun ExtensionsPage() {
                     item(
                         onClick = { navController.navigate(Screen.Workspaces) },
                         leadingContent = { Icon(HugeIcons.Folder01, null) },
-                        headlineContent = { Text(stringResource(R.string.extensions_page_workspace)) },
+                        headlineContent = { Text(stringResource(R.string.extensions_page_workspace) },
                         supportingContent = { Text(stringResource(R.string.extensions_page_workspace_desc)) },
                     )
                 }
