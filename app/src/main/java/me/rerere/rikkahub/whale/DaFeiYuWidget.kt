@@ -71,5 +71,3 @@ private class DaFeiYuWebViewClient(private val context: android.content.Context)
         ByteArrayInputStream(body.toByteArray(Charsets.UTF_8)),
     )
 }
-
-// Retrigger after making the RouteActivity patch resilient.
