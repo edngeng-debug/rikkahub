@@ -51,4 +51,4 @@ private const val DaFeiYuWidgetHtml = """
 <body style="margin:0;background:transparent;overflow:hidden"><div id="root"><textarea aria-hidden="true" style="position:absolute;left:-9999px"></textarea></div>
 <script src="https://raw.githubusercontent.com/MeteorNOX/DeepSeek-Balance-Whale-Widget/main/assets/whale-widget.js"></script></body></html>
 """
-// Trigger the corrected submodule-aware build (width import fix).
+// Trigger the corrected submodule-aware build (width + height import fix).
