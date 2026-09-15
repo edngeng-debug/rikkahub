@@ -1,10 +1,11 @@
 <div align="center">
-  <img src="docs/icon.png" alt="App Icon" width="100" />
+  <img src="https://raw.githubusercontent.com/MeteorNOX/DeepSeek-Balance-Whale-Widget/master/assets/DSniang1.png" alt="大肥鱼" width="180" />
   <h1>RikkaHub · 大肥鱼版</h1>
 
   <p><b>一个加入「大肥鱼」桌面小组件的 RikkaHub Fork</b></p>
 
   <p>
+    <a href="README_EN.md">English</a> ·
     <a href="https://github.com/edngeng-debug/rikkahub">项目仓库</a> ·
     <a href="https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget">大肥鱼组件原始仓库</a>
   </p>
@@ -25,11 +26,7 @@
 - 🐟 在 RikkaHub 聊天界面显示大肥鱼
 - 🎛️ 保留原组件的菜单交互
 - 👁️ 支持隐藏菜单按钮
-- 📐 提供组件大小调试入口，可分别调整：
-  - 大肥鱼大小
-  - 气泡大小
-  - 字体大小
-  - 菜单按钮大小
+- 📐 提供组件大小调试入口，可分别调整大肥鱼、气泡、字体和菜单按钮大小
 - 💾 调试尺寸设置保存在本地，重新打开后仍会保留
 - 🔄 支持恢复默认尺寸
 - 📱 针对 Android 全屏聊天界面进行适配
