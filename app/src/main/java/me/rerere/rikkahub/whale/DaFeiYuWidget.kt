@@ -1,12 +1,8 @@
 package me.rerere.rikkahub.whale
 
 import android.annotation.SuppressLint
-import android.app.Activity
 import android.graphics.Color
 import android.graphics.RectF
-import android.graphics.drawable.ColorDrawable
-import android.os.Build
-import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.webkit.JavascriptInterface
@@ -14,245 +10,133 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.widget.PopupWindow
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.viewinterop.AndroidView
 import java.io.ByteArrayInputStream
-import kotlin.math.ceil
 import kotlin.math.max
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun DaFeiYuWidget(modifier: Modifier = Modifier) {
-    val hostView = LocalView.current
-    DisposableEffect(hostView) {
-        val context = hostView.context
-        val activity = context as? Activity
-        if (activity == null) {
-            onDispose { }
-        } else {
-            val decor = activity.window.decorView
-            val webView = DaFeiYuWebView(context)
-            webView.setBackgroundColor(Color.TRANSPARENT)
-            webView.settings.javaScriptEnabled = true
-            webView.settings.domStorageEnabled = true
-            webView.settings.allowFileAccess = false
-            webView.settings.allowContentAccess = false
-            webView.settings.mediaPlaybackRequiresUserGesture = false
-            webView.isVerticalScrollBarEnabled = false
-            webView.isHorizontalScrollBarEnabled = false
-            // The whale must never become the app's IME/focus target.
-            webView.isFocusable = false
-            webView.isFocusableInTouchMode = false
-            webView.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-            webView.overScrollMode = View.OVER_SCROLL_NEVER
+    Box(modifier = modifier) {
+        AndroidView(
+            modifier = Modifier.fillMaxSize(),
+            factory = { context ->
+                DaFeiYuWebView(context).apply {
+                    setBackgroundColor(Color.TRANSPARENT)
+                    settings.javaScriptEnabled = true
+                    settings.domStorageEnabled = true
+                    settings.allowFileAccess = false
+                    settings.allowContentAccess = false
+                    settings.mediaPlaybackRequiresUserGesture = false
+                    isVerticalScrollBarEnabled = false
+                    isHorizontalScrollBarEnabled = false
+                    isFocusable = false
+                    isFocusableInTouchMode = false
+                    importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                    overScrollMode = View.OVER_SCROLL_NEVER
 
-            val renderPopup = PopupWindow(webView, -1, -1, false).apply {
-                setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-                isTouchable = false
-                isFocusable = false
-                isOutsideTouchable = false
-                // Keep the transparent renderer behind the keyboard. INPUT_METHOD_NOT_NEEDED
-                // would let a full-screen popup cover the IME even though it is non-focusable.
-                setInputMethodMode(PopupWindow.INPUT_METHOD_NEEDED)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    setIsLaidOutInScreen(true)
-                    setIsClippedToScreen(false)
+                    val bridge = MenuStateBridge(this)
+                    addJavascriptInterface(bridge, "RikkaDaFeiYu")
+                    webViewClient = DaFeiYuWebViewClient(context)
+
+                    val script = context.assets.open("dafeiyu/whale-widget.js").bufferedReader().use { it.readText() }
+                    val debugScript = context.assets.open("dafeiyu/debug.js").bufferedReader().use { it.readText() }
+                    val html = """
+                        <!doctype html>
+                        <html>
+                        <head>
+                          <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+                        </head>
+                        <body style="margin:0;background:transparent;overflow:visible;width:100%;height:100%;min-height:100%">
+                          <div id="root"></div>
+                          <script>$script</script>
+                          <script>$debugScript</script>
+                        </body>
+                        </html>
+                    """.trimIndent()
+
+                    // Keep WebView construction off the first Compose frame. The view stays
+                    // in the normal Compose hierarchy, so it cannot create a separate full-screen
+                    // window that steals RikkaHub input or covers the IME.
+                    postDelayed({
+                        if (!isAttachedToWindow) return@postDelayed
+                        loadDataWithBaseURL(
+                            "https://rikkahub.local/",
+                            html,
+                            "text/html",
+                            "UTF-8",
+                            null,
+                        )
+                    }, 80L)
                 }
-                setAttachedInDecor(true)
-            }
-
-            val touchView = TouchRelayView(context, webView)
-            val touchPopup = PopupWindow(touchView, 1, 1, false).apply {
-                setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-                isTouchable = true
-                isFocusable = false
-                // Do not auto-dismiss the relay when the user taps RikkaHub outside the whale.
-                setOutsideTouchable(false)
-                setInputMethodMode(PopupWindow.INPUT_METHOD_NEEDED)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    setTouchModal(false)
-                    setIsLaidOutInScreen(true)
-                    setIsClippedToScreen(true)
-                }
-                setAttachedInDecor(true)
-            }
-
-            val relay = TouchRelayController(decor, touchPopup, touchView)
-            touchView.controller = relay
-            webView.addJavascriptInterface(MenuStateBridge(relay), "RikkaDaFeiYu")
-            webView.webViewClient = DaFeiYuWebViewClient(context)
-
-            val script = context.assets.open("dafeiyu/whale-widget.js").bufferedReader().use { it.readText() }
-            val debugScript = context.assets.open("dafeiyu/debug.js").bufferedReader().use { it.readText() }
-            val html = """
-                <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"></head>
-                <body style="margin:0;background:transparent;overflow:visible;width:100%;height:100%;min-height:100%"><div id="root"></div>
-                <script>$script</script><script>$debugScript</script></body></html>
-            """.trimIndent()
-
-            fun show() {
-                val w = decor.width
-                val h = decor.height
-                if (w <= 0 || h <= 0) {
-                    decor.post { show() }
-                    return
-                }
-                if (!renderPopup.isShowing) {
-                    renderPopup.showAtLocation(decor, Gravity.TOP or Gravity.START, 0, 0)
-                } else {
-                    renderPopup.update(0, 0, w, h)
-                }
-                if (!touchPopup.isShowing) {
-                    touchPopup.showAtLocation(decor, Gravity.TOP or Gravity.START, 0, 0)
-                }
-                relay.applyPending()
-            }
-
-            // Let the first Compose frame and the normal input connection settle before
-            // starting WebView. This removes WebView startup work from the critical launch path.
-            val start = Runnable {
-                webView.loadDataWithBaseURL(
-                    "https://rikkahub.local/",
-                    html,
-                    "text/html",
-                    "UTF-8",
-                    null,
-                )
-                show()
-            }
-            decor.postDelayed(start, 120L)
-
-            onDispose {
-                decor.removeCallbacks(start)
-                try { touchPopup.dismiss() } catch (_: Throwable) { }
-                try { renderPopup.dismiss() } catch (_: Throwable) { }
-                try { webView.stopLoading(); webView.destroy() } catch (_: Throwable) { }
-            }
-        }
+            },
+            onRelease = { webView ->
+                webView.stopLoading()
+                webView.destroy()
+            },
+        )
     }
-    Box(modifier = modifier)
 }
 
-private class DaFeiYuWebView(context: android.content.Context) : WebView(context)
+private class DaFeiYuWebView(context: android.content.Context) : WebView(context) {
+    @Volatile
+    var widgetRect = RectF(0f, 0f, 1f, 1f)
 
-private class TouchRelayView(
-    context: android.content.Context,
-    private val target: DaFeiYuWebView,
-) : View(context) {
-    var controller: TouchRelayController? = null
+    @Volatile
+    var interactiveOpen = false
+
+    private var touchInside = false
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        val c = controller ?: return false
-        if (event.actionMasked == MotionEvent.ACTION_DOWN) c.beginGesture()
-        val copy = MotionEvent.obtain(event)
-        try {
-            copy.offsetLocation(c.forwardOffsetX, c.forwardOffsetY)
-            target.dispatchTouchEvent(copy)
-        } finally {
-            copy.recycle()
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+            val r = widgetRect
+            touchInside = interactiveOpen || r.contains(event.x, event.y)
+            if (!touchInside) return false
+        } else if (!touchInside && !interactiveOpen) {
+            return false
         }
+
+        val handled = super.onTouchEvent(event)
         if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
-            c.endGesture()
+            touchInside = false
         }
-        return true
+        return handled
     }
 }
 
-private class TouchRelayController(
-    private val decor: View,
-    private val touchPopup: PopupWindow,
-    private val touchView: TouchRelayView,
-) {
-    @Volatile private var widgetRect = RectF(0f, 0f, 1f, 1f)
-    @Volatile private var interactive = false
-    @Volatile private var gestureActive = false
-    @Volatile private var pendingApply = false
-    private var appliedRect = RectF(-1f, -1f, -1f, -1f)
-    private var appliedInteractive = false
-
-    var forwardOffsetX: Float = 0f
-        private set
-    var forwardOffsetY: Float = 0f
-        private set
-
-    fun setWidgetRect(left: Float, top: Float, right: Float, bottom: Float, viewportWidth: Float, viewportHeight: Float) {
-        if (viewportWidth <= 0f || viewportHeight <= 0f) return
-        val w = max(1, decor.width).toFloat()
-        val h = max(1, decor.height).toFloat()
-        val sx = w / viewportWidth
-        val sy = h / viewportHeight
-        val next = RectF(left * sx, top * sy, right * sx, bottom * sy)
-        if (next.right <= next.left || next.bottom <= next.top) return
-        if (kotlin.math.abs(next.left - widgetRect.left) < 1f &&
-            kotlin.math.abs(next.top - widgetRect.top) < 1f &&
-            kotlin.math.abs(next.right - widgetRect.right) < 1f &&
-            kotlin.math.abs(next.bottom - widgetRect.bottom) < 1f) return
-        widgetRect = next
-        applyPending()
-    }
-
+private class MenuStateBridge(private val webView: DaFeiYuWebView) {
+    @JavascriptInterface
     fun setMenuOpen(open: Boolean) {
-        if (interactive == open) return
-        interactive = open
-        applyPending()
+        webView.interactiveOpen = open
     }
 
+    @JavascriptInterface
     fun setInteractive(open: Boolean) {
-        if (interactive == open) return
-        interactive = open
-        applyPending()
+        webView.interactiveOpen = open
     }
 
-    fun beginGesture() { gestureActive = true }
-
-    fun endGesture() {
-        gestureActive = false
-        pendingApply = true
-        applyPending()
-    }
-
-    fun applyPending() {
-        if (gestureActive || !touchPopup.isShowing) {
-            pendingApply = true
-            return
+    @JavascriptInterface
+    fun setWidgetRect(
+        left: Float,
+        top: Float,
+        right: Float,
+        bottom: Float,
+        viewportWidth: Float,
+        viewportHeight: Float,
+    ) {
+        if (viewportWidth <= 0f || viewportHeight <= 0f) return
+        val width = max(1, webView.width).toFloat()
+        val height = max(1, webView.height).toFloat()
+        val sx = width / viewportWidth
+        val sy = height / viewportHeight
+        val next = RectF(left * sx, top * sy, right * sx, bottom * sy)
+        if (next.right > next.left && next.bottom > next.top) {
+            webView.widgetRect = next
         }
-        val w = max(1, decor.width)
-        val h = max(1, decor.height)
-        if (interactive) {
-            if (appliedInteractive && !pendingApply) return
-            forwardOffsetX = 0f
-            forwardOffsetY = 0f
-            touchPopup.update(0, 0, w, h)
-            appliedRect = RectF(0f, 0f, w.toFloat(), h.toFloat())
-        } else {
-            val l = widgetRect.left.toInt().coerceIn(0, max(0, w - 1))
-            val t = widgetRect.top.toInt().coerceIn(0, max(0, h - 1))
-            val r = ceil(widgetRect.right).toInt().coerceIn(l + 1, w)
-            val b = ceil(widgetRect.bottom).toInt().coerceIn(t + 1, h)
-            val pw = max(1, r - l)
-            val ph = max(1, b - t)
-            val next = RectF(l.toFloat(), t.toFloat(), r.toFloat(), b.toFloat())
-            if (!pendingApply && !appliedInteractive && next == appliedRect) return
-            forwardOffsetX = l.toFloat()
-            forwardOffsetY = t.toFloat()
-            touchPopup.update(l, t, pw, ph)
-            appliedRect = next
-        }
-        appliedInteractive = interactive
-        pendingApply = false
-        touchView.requestLayout()
-    }
-}
-
-private class MenuStateBridge(private val relay: TouchRelayController) {
-    @JavascriptInterface fun setMenuOpen(open: Boolean) { relay.setMenuOpen(open) }
-    @JavascriptInterface fun setInteractive(open: Boolean) { relay.setInteractive(open) }
-    @JavascriptInterface fun setWidgetRect(left: Float, top: Float, right: Float, bottom: Float, viewportWidth: Float, viewportHeight: Float) {
-        relay.setWidgetRect(left, top, right, bottom, viewportWidth, viewportHeight)
     }
 }
 
@@ -261,8 +145,16 @@ private class DaFeiYuWebViewClient(private val context: android.content.Context)
         return when (request.url.path) {
             "/dsh-whale/image.png" -> asset("dafeiyu/DSniang1.png", "image/png", null)
             "/dsh-whale/rua.gif" -> asset("dafeiyu/rua.gif", "image/gif", null)
-            "/dsh-whale/sound/press.mp3" -> asset(if (request.url.getQueryParameter("set") == "fx1") "dafeiyu/D1.mp3" else "dafeiyu/Ya1.mp3", "audio/mpeg", null)
-            "/dsh-whale/sound/release.mp3" -> asset(if (request.url.getQueryParameter("set") == "fx1") "dafeiyu/D2.mp3" else "dafeiyu/Ya2.mp3", "audio/mpeg", null)
+            "/dsh-whale/sound/press.mp3" -> asset(
+                if (request.url.getQueryParameter("set") == "fx1") "dafeiyu/D1.mp3" else "dafeiyu/Ya1.mp3",
+                "audio/mpeg",
+                null,
+            )
+            "/dsh-whale/sound/release.mp3" -> asset(
+                if (request.url.getQueryParameter("set") == "fx1") "dafeiyu/D2.mp3" else "dafeiyu/Ya2.mp3",
+                "audio/mpeg",
+                null,
+            )
             "/dsh-whale/balance.json" -> json("{\"balance\":0,\"currency\":\"CNY\"}")
             "/dsh-whale/size.json" -> json("{\"scale\":1,\"sound\":true,\"vol\":1,\"soundSet\":\"duck\",\"usageMode\":\"ledger\",\"peakMode\":\"auto\",\"bubbleOn\":true,\"turnCostOn\":true,\"turnCostCloseMs\":5000}")
             "/dsh-whale/last-turn.json" -> json("{\"seq\":0,\"cost\":0}")
@@ -270,6 +162,12 @@ private class DaFeiYuWebViewClient(private val context: android.content.Context)
         }
     }
 
-    private fun asset(path: String, mime: String, encoding: String?): WebResourceResponse = WebResourceResponse(mime, encoding, context.assets.open(path))
-    private fun json(body: String) = WebResourceResponse("application/json", "UTF-8", ByteArrayInputStream(body.toByteArray(Charsets.UTF_8)))
+    private fun asset(path: String, mime: String, encoding: String?): WebResourceResponse =
+        WebResourceResponse(mime, encoding, context.assets.open(path))
+
+    private fun json(body: String) = WebResourceResponse(
+        "application/json",
+        "UTF-8",
+        ByteArrayInputStream(body.toByteArray(Charsets.UTF_8)),
+    )
 }
