@@ -2,6 +2,8 @@ package me.rerere.rikkahub.whale
 
 import android.annotation.SuppressLint
 import android.graphics.Color
+import android.view.MotionEvent
+import android.webkit.JavascriptInterface
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
@@ -20,7 +22,7 @@ fun DaFeiYuWidget(modifier: Modifier = Modifier) {
         AndroidView(
             modifier = Modifier.fillMaxSize(),
             factory = { context ->
-                WebView(context).apply {
+                DaFeiYuWebView(context).apply {
                     setBackgroundColor(Color.TRANSPARENT)
                     settings.javaScriptEnabled = true
                     settings.domStorageEnabled = true
@@ -29,14 +31,16 @@ fun DaFeiYuWidget(modifier: Modifier = Modifier) {
                     settings.mediaPlaybackRequiresUserGesture = false
                     isVerticalScrollBarEnabled = false
                     isHorizontalScrollBarEnabled = false
+                    addJavascriptInterface(MenuStateBridge(this), "RikkaDaFeiYu")
                     webViewClient = DaFeiYuWebViewClient(context)
                     val script = context.assets.open("dafeiyu/whale-widget.js").bufferedReader().use { it.readText() }
+                    val debugScript = context.assets.open("dafeiyu/debug.js").bufferedReader().use { it.readText() }
                     loadDataWithBaseURL(
                         "https://rikkahub.local/",
                         """
                         <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"></head>
                         <body style="margin:0;background:transparent;overflow:hidden"><div id="root"><textarea aria-hidden="true" style="position:absolute;left:-9999px"></textarea></div>
-                        <script>$script</script></body></html>
+                        <script>$script</script><script>$debugScript</script></body></html>
                         """.trimIndent(),
                         "text/html",
                         "UTF-8",
@@ -45,6 +49,35 @@ fun DaFeiYuWidget(modifier: Modifier = Modifier) {
                 }
             },
         )
+    }
+}
+
+private class DaFeiYuWebView(context: android.content.Context) : WebView(context) {
+    @Volatile
+    var menuOpen = false
+    private var touchInside = false
+
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+            val edge = 360f * resources.displayMetrics.density
+            val inWidget = event.x >= width - edge && event.y >= height - edge
+            touchInside = inWidget || menuOpen
+            if (!touchInside) return false
+        } else if (!touchInside && !menuOpen) {
+            return false
+        }
+        val handled = super.onTouchEvent(event)
+        if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
+            touchInside = false
+        }
+        return handled
+    }
+}
+
+private class MenuStateBridge(private val webView: DaFeiYuWebView) {
+    @JavascriptInterface
+    fun setMenuOpen(open: Boolean) {
+        webView.menuOpen = open
     }
 }
 
