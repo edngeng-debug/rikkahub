@@ -9,14 +9,18 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.unit.dp
 import java.io.ByteArrayInputStream
 
 @SuppressLint("SetJavaScriptEnabled")
@@ -24,17 +28,21 @@ import java.io.ByteArrayInputStream
 fun DaFeiYuWidget(modifier: Modifier = Modifier) {
     var ready by remember { mutableStateOf(false) }
 
-    // Do not construct WebView during the first Compose frame. WebView creation itself is
-    // expensive on Android and was making RikkaHub slow before the UI became interactive.
+    // Keep WebView creation off the first Compose frame so the normal RikkaHub UI stays responsive.
     LaunchedEffect(Unit) {
         kotlinx.coroutines.delay(500L)
         ready = true
     }
 
+    // RouteActivity may give this composable the full screen. The WebView itself must stay
+    // confined to the widget corner so it cannot intercept taps or IME input elsewhere.
     Box(modifier = modifier) {
         if (ready) {
             AndroidView(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .width(320.dp)
+                    .height(320.dp),
                 factory = { context ->
                     DaFeiYuWebView(context).apply {
                         setBackgroundColor(Color.TRANSPARENT)
