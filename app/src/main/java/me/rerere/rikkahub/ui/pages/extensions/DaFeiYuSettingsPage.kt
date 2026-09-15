@@ -1,101 +1,97 @@
 package me.rerere.rikkahub.ui.pages.extensions
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material3.Button
-import androidx.compose.material3.LargeFlexibleTopAppBar
+import android.annotation.SuppressLint
+import android.graphics.Color
+import android.webkit.JavascriptInterface
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.theme.CustomColors
-import me.rerere.rikkahub.whale.DaFeiYuSettings
 import me.rerere.rikkahub.whale.DaFeiYuSettingsStore
+import java.io.ByteArrayInputStream
 
+@SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun DaFeiYuSettingsPage() {
-    val context = LocalContext.current
-    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
-    var settings by remember { mutableStateOf(DaFeiYuSettingsStore.load(context)) }
-
-    fun update(transform: (DaFeiYuSettings) -> DaFeiYuSettings) {
-        val next = transform(settings)
-        settings = next
-        DaFeiYuSettingsStore.save(context, next)
-    }
-
     Scaffold(
         topBar = {
-            LargeFlexibleTopAppBar(
+            TopAppBar(
                 title = { Text("大肥鱼设置") },
                 navigationIcon = { BackButton() },
-                scrollBehavior = scrollBehavior,
                 colors = CustomColors.topBarColors,
             )
         },
-        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         containerColor = CustomColors.topBarColors.containerColor,
     ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(innerPadding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp),
-        ) {
-            item {
-                Text(
-                    "这里调整大肥鱼本体、气泡和文字大小。返回聊天后会自动使用新的设置。",
-                    modifier = Modifier.padding(horizontal = 4.dp),
-                )
-            }
-            item { ScaleSetting("大肥鱼", settings.char) { v -> update { it.copy(char = v) } } }
-            item { ScaleSetting("气泡", settings.bubble) { v -> update { it.copy(bubble = v) } } }
-            item { ScaleSetting("标题", settings.label) { v -> update { it.copy(label = v) } } }
-            item { ScaleSetting("余额数字", settings.amount) { v -> update { it.copy(amount = v) } } }
-            item { ScaleSetting("提示文字", settings.hint) { v -> update { it.copy(hint = v) } } }
-            item {
-                Button(
-                    onClick = {
-                        DaFeiYuSettingsStore.reset(context)
-                        settings = DaFeiYuSettings()
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text("恢复默认")
-                }
-            }
+        Box(modifier = Modifier.fillMaxSize()) {
+            AndroidView(
+                modifier = Modifier.fillMaxSize(),
+                factory = { context ->
+                    DaFeiYuSettingsWebView(context).apply {
+                        setBackgroundColor(Color.TRANSPARENT)
+                        settings.javaScriptEnabled = true
+                        settings.domStorageEnabled = true
+                        settings.allowFileAccess = false
+                        settings.allowContentAccess = false
+                        settings.mediaPlaybackRequiresUserGesture = false
+                        isVerticalScrollBarEnabled = false
+                        isHorizontalScrollBarEnabled = false
+                        webViewClient = SettingsWebViewClient(context)
+                        addJavascriptInterface(SettingsBridge(context), "RikkaDaFeiYuSettings")
+
+                        val script = context.assets.open("dafeiyu/whale-widget.js").bufferedReader().use { it.readText() }
+                        val html = """
+                            <!doctype html><html><head>
+                            <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+                            </head><body style="margin:0;background:transparent;overflow:auto;width:100%;height:100%">
+                            <div id="root"><textarea aria-hidden="true" tabindex="-1" style="position:absolute;left:-99999px;top:-99999px;width:1px;height:1px;opacity:0"></textarea></div>
+                            <script>window.__RIKKAHUB_DAFEIYU_EMBEDDED=true;</script>
+                            <script>(function(){var f=window.fetch;window.fetch=function(input,init){try{var u=typeof input==='string'?input:(input&&input.url)||'';var m=((init&&init.method)||((input&&input.method)||'GET')).toUpperCase();if(u.indexOf('/dsh-whale/size.json')>=0){if(m==='PUT'){window.RikkaDaFeiYuSettings.saveSize((init&&init.body)||'{}');return Promise.resolve(new Response(JSON.stringify({ok:true}),{status:200,headers:{'Content-Type':'application/json'}}));}return Promise.resolve(new Response(window.RikkaDaFeiYuSettings.getSize(),{status:200,headers:{'Content-Type':'application/json'}}));}if(u.indexOf('/dsh-whale/usage-settings.json')>=0){if(m==='PUT'){window.RikkaDaFeiYuSettings.saveUsage((init&&init.body)||'{}');return Promise.resolve(new Response(JSON.stringify({ok:true,settings:{}}),{status:200,headers:{'Content-Type':'application/json'}}));}return Promise.resolve(new Response(window.RikkaDaFeiYuSettings.getUsage(),{status:200,headers:{'Content-Type':'application/json'}}));}}catch(e){}return f.apply(this,arguments)}})();</script>
+                            <script>$script</script>
+                            <script>setTimeout(function(){var n=0,t=setInterval(function(){n++;var b=document.querySelector('.dshwv-menu-btn');if(b){clearInterval(t);try{b.click()}catch(e){}}if(n>20)clearInterval(t)},250)},250);</script>
+                            </body></html>
+                        """.trimIndent()
+                        loadDataWithBaseURL("https://rikkahub.local/", html, "text/html", "UTF-8", null)
+                    }
+                },
+                onRelease = { webView -> webView.stopLoading(); webView.destroy() },
+            )
         }
     }
 }
 
-@Composable
-private fun ScaleSetting(
-    title: String,
-    value: Float,
-    onValueChange: (Float) -> Unit,
-) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Text("$title：${"%.2f".format(value)}×")
-        Slider(
-            value = value,
-            onValueChange = onValueChange,
-            valueRange = 0.5f..2f,
-            steps = 29,
-        )
+private class DaFeiYuSettingsWebView(context: android.content.Context) : WebView(context)
+
+private class SettingsBridge(private val context: android.content.Context) {
+    @JavascriptInterface fun getSize(): String = DaFeiYuSettingsStore.json(context)
+    @JavascriptInterface fun saveSize(json: String) { DaFeiYuSettingsStore.updateFromJson(context, json) }
+    @JavascriptInterface fun getUsage(): String = DaFeiYuSettingsStore.usageJson(context)
+    @JavascriptInterface fun saveUsage(json: String) { DaFeiYuSettingsStore.saveUsagePatch(context, json) }
+}
+
+private class SettingsWebViewClient(private val context: android.content.Context) : WebViewClient() {
+    override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest): WebResourceResponse? = when (request.url.path) {
+        "/dsh-whale/image.png" -> asset("dafeiyu/DSniang1.png", "image/png")
+        "/dsh-whale/rua.gif" -> asset("dafeiyu/rua.gif", "image/gif")
+        "/dsh-whale/sound/press.mp3" -> asset(if (request.url.getQueryParameter("set") == "fx1") "dafeiyu/D1.mp3" else "dafeiyu/Ya1.mp3", "audio/mpeg")
+        "/dsh-whale/sound/release.mp3" -> asset(if (request.url.getQueryParameter("set") == "fx1") "dafeiyu/D2.mp3" else "dafeiyu/Ya2.mp3", "audio/mpeg")
+        "/dsh-whale/balance.json" -> json("{\"balance\":0,\"currency\":\"CNY\"}")
+        "/dsh-whale/size.json" -> json(DaFeiYuSettingsStore.json(context))
+        "/dsh-whale/usage-settings.json" -> json(DaFeiYuSettingsStore.usageJson(context))
+        "/dsh-whale/last-turn.json" -> json("{\"seq\":0,\"cost\":0}")
+        "/dsh-whale/bubble.json" -> json("{\"ok\":true,\"config\":{\"lib\":[]}}")
+        else -> super.shouldInterceptRequest(view, request)
     }
+    private fun asset(path: String, mime: String) = WebResourceResponse(mime, null, context.assets.open(path))
+    private fun json(body: String) = WebResourceResponse("application/json", "UTF-8", ByteArrayInputStream(body.toByteArray(Charsets.UTF_8)))
 }
