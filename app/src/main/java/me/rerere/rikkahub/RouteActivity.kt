@@ -23,6 +23,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -129,6 +131,7 @@ import me.rerere.rikkahub.ui.theme.LocalDarkMode
 import me.rerere.rikkahub.ui.theme.RikkahubTheme
 import me.rerere.rikkahub.utils.CrashHandler
 import me.rerere.rikkahub.utils.openUsageAccessSettings
+import me.rerere.rikkahub.whale.DaFeiYuWidget
 import okhttp3.OkHttpClient
 import org.koin.android.ext.android.inject
 import org.koin.compose.koinInject
@@ -321,12 +324,20 @@ class RouteActivity : ComponentActivity() {
                                 metadata = NavDisplay.transitionSpec { fadeIn() togetherWith fadeOut() }
                                     + NavDisplay.popTransitionSpec { fadeIn() togetherWith fadeOut() }
                             ) { key ->
-                                ChatPage(
-                                    id = Uuid.parse(key.id),
-                                    text = key.text,
-                                    files = key.files.map { it.toUri() },
-                                    nodeId = key.nodeId?.let { Uuid.parse(it) }
-                                )
+                                Box(modifier = Modifier.fillMaxSize()) {
+                                    ChatPage(
+                                        id = Uuid.parse(key.id),
+                                        text = key.text,
+                                        files = key.files.map { it.toUri() },
+                                        nodeId = key.nodeId?.let { Uuid.parse(it) }
+                                    )
+                                    DaFeiYuWidget(
+                                        modifier = Modifier
+                                            .align(Alignment.BottomEnd)
+                                            .width(320.dp)
+                                            .height(320.dp)
+                                    )
+                                }
                             }
 
                             entry<Screen.ShareHandler> { key ->

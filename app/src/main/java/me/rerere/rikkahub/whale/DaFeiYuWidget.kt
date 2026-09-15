@@ -30,7 +30,18 @@ fun DaFeiYuWidget(modifier: Modifier = Modifier) {
                     isVerticalScrollBarEnabled = false
                     isHorizontalScrollBarEnabled = false
                     webViewClient = DaFeiYuWebViewClient(context)
-                    loadDataWithBaseURL("https://rikkahub.local/", DaFeiYuWidgetHtml, "text/html", "UTF-8", null)
+                    val script = context.assets.open("dafeiyu/whale-widget.js").bufferedReader().use { it.readText() }
+                    loadDataWithBaseURL(
+                        "https://rikkahub.local/",
+                        """
+                        <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"></head>
+                        <body style="margin:0;background:transparent;overflow:hidden"><div id="root"><textarea aria-hidden="true" style="position:absolute;left:-9999px"></textarea></div>
+                        <script>$script</script></body></html>
+                        """.trimIndent(),
+                        "text/html",
+                        "UTF-8",
+                        null,
+                    )
                 }
             },
         )
@@ -38,17 +49,25 @@ fun DaFeiYuWidget(modifier: Modifier = Modifier) {
 }
 
 private class DaFeiYuWebViewClient(private val context: android.content.Context) : WebViewClient() {
-    override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest): WebResourceResponse? = when (request.url.path) {
-        "/dsh-whale/balance.json" -> json("{\"balance\":0,\"currency\":\"CNY\"}")
-        "/dsh-whale/size.json" -> json("{\"scale\":1,\"sound\":true,\"vol\":1,\"soundSet\":\"duck\",\"usageMode\":\"ledger\",\"peakMode\":\"auto\",\"bubbleOn\":true,\"turnCostOn\":true,\"turnCostCloseMs\":5000}")
-        else -> super.shouldInterceptRequest(view, request)
+    override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest): WebResourceResponse? {
+        return when (request.url.path) {
+            "/dsh-whale/image.png" -> asset("dafeiyu/DSniang1.png", "image/png", null)
+            "/dsh-whale/rua.gif" -> asset("dafeiyu/rua.gif", "image/gif", null)
+            "/dsh-whale/sound/press.mp3" -> asset(if (request.url.getQueryParameter("set") == "fx1") "dafeiyu/D1.mp3" else "dafeiyu/Ya1.mp3", "audio/mpeg", null)
+            "/dsh-whale/sound/release.mp3" -> asset(if (request.url.getQueryParameter("set") == "fx1") "dafeiyu/D2.mp3" else "dafeiyu/Ya2.mp3", "audio/mpeg", null)
+            "/dsh-whale/balance.json" -> json("{\"balance\":0,\"currency\":\"CNY\"}")
+            "/dsh-whale/size.json" -> json("{\"scale\":1,\"sound\":true,\"vol\":1,\"soundSet\":\"duck\",\"usageMode\":\"ledger\",\"peakMode\":\"auto\",\"bubbleOn\":true,\"turnCostOn\":true,\"turnCostCloseMs\":5000}")
+            "/dsh-whale/last-turn.json" -> json("{\"seq\":0,\"cost\":0}")
+            else -> super.shouldInterceptRequest(view, request)
+        }
     }
-    private fun json(body: String) = WebResourceResponse("application/json", "UTF-8", ByteArrayInputStream(body.toByteArray(Charsets.UTF_8)))
-}
 
-private const val DaFeiYuWidgetHtml = """
-<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"></head>
-<body style="margin:0;background:transparent;overflow:hidden"><div id="root"><textarea aria-hidden="true" style="position:absolute;left:-9999px"></textarea></div>
-<script src="https://raw.githubusercontent.com/MeteorNOX/DeepSeek-Balance-Whale-Widget/main/assets/whale-widget.js"></script></body></html>
-"""
-// Trigger the corrected submodule-aware build (width + height import fix).
+    private fun asset(path: String, mime: String, encoding: String?): WebResourceResponse =
+        WebResourceResponse(mime, encoding, context.assets.open(path))
+
+    private fun json(body: String) = WebResourceResponse(
+        "application/json",
+        "UTF-8",
+        ByteArrayInputStream(body.toByteArray(Charsets.UTF_8)),
+    )
+}
