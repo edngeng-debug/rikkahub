@@ -65,24 +65,12 @@ jobs:
               anchor = 'import me.rerere.rikkahub.ui.pages.extensions.ExtensionsPage\n'
               s = s.replace(anchor, anchor + 'import me.rerere.rikkahub.ui.pages.extensions.DaFeiYuSettingsPage\n')
           if 'entry<Screen.DaFeiYuSettings>' not in s:
-              anchor = '''                            entry<Screen.Extensions> {
-                                ExtensionsPage()
-                            }
-'''
-              replacement = anchor + '''
-                            entry<Screen.DaFeiYuSettings> {
-                                DaFeiYuSettingsPage()
-                            }
-'''
+              anchor = '                            entry<Screen.Extensions> {\n                                ExtensionsPage()\n                            }\n'
+              replacement = anchor + '\n                            entry<Screen.DaFeiYuSettings> {\n                                DaFeiYuSettingsPage()\n                            }\n'
               s = s.replace(anchor, replacement)
           if 'data object DaFeiYuSettings : Screen' not in s:
-              anchor = '''    @Serializable
-    data object Extensions : Screen
-'''
-              replacement = anchor + '''
-    @Serializable
-    data object DaFeiYuSettings : Screen
-'''
+              anchor = '    @Serializable\n    data object Extensions : Screen\n'
+              replacement = anchor + '\n    @Serializable\n    data object DaFeiYuSettings : Screen\n'
               s = s.replace(anchor, replacement)
           route.write_text(s)
 
