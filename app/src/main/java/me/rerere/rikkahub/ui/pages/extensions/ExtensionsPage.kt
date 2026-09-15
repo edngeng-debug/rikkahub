@@ -30,7 +30,7 @@ import me.rerere.hugeicons.stroke.Puzzle
 import me.rerere.hugeicons.stroke.Zap
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.Screen
-import me.rerere.rikkahub.service.DeepSeekPetService
+import me.rerere.rikkahub.service.LocalDeepSeekPetService
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.components.ui.CardGroup
 import me.rerere.rikkahub.ui.context.LocalNavController
@@ -57,7 +57,7 @@ fun ExtensionsPage() {
     ) {
         if (Settings.canDrawOverlays(context)) {
             if (deepSeekKey.isNotBlank()) {
-                DeepSeekPetService.start(context, deepSeekKey)
+                LocalDeepSeekPetService.start(context, deepSeekKey)
             } else {
                 Toast.makeText(context, "请先在 RikkaHub 中配置 DeepSeek API Key", Toast.LENGTH_LONG).show()
             }
@@ -96,7 +96,7 @@ fun ExtensionsPage() {
                                     )
                                 )
                             } else if (deepSeekKey.isNotBlank()) {
-                                DeepSeekPetService.start(context, deepSeekKey)
+                                LocalDeepSeekPetService.start(context, deepSeekKey)
                             } else {
                                 Toast.makeText(context, "请先在 RikkaHub 中配置 DeepSeek API Key", Toast.LENGTH_LONG).show()
                             }
