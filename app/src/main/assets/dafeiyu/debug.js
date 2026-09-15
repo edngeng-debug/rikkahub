@@ -8,7 +8,7 @@
   function sync(){
     try{
       if(!window.RikkaDaFeiYu)return;
-      var open=!!document.querySelector('.dshwv-menu.dshwv-menu-open,.dshwv-debug-mask');
+      var open=!!document.querySelector('.dshwv-menu.dshwv-menu-open,.dshwv-debug-mask,.dshwv-root.dshwv-dragging');
       if(!open){
         var n=document.querySelectorAll('.dshwv-bubmask,.dshwv-audiomask,.dshwv-confirmmask,.dshwv-cropmask,.dshwv-snapmask,.dshwv-resmask,.dshwv-usage-mask,.dshwv-qedit,.dshwv-usagepanel,.dshwv-rolelist,.dshwv-audiolist,.dshwv-custmenu');
         for(var i=0;i<n.length;i++){var e=n[i],c=getComputedStyle(e),r=e.getBoundingClientRect();if(c.display!=='none'&&c.visibility!=='hidden'&&r.width>1&&r.height>1){open=true;break}}
