@@ -2,25 +2,20 @@ package me.rerere.rikkahub.whale
 
 import android.annotation.SuppressLint
 import android.graphics.Color
-import android.view.View
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.compose.ui.unit.dp
 import java.io.ByteArrayInputStream
 
 @SuppressLint("SetJavaScriptEnabled")
@@ -28,21 +23,15 @@ import java.io.ByteArrayInputStream
 fun DaFeiYuWidget(modifier: Modifier = Modifier) {
     var ready by remember { mutableStateOf(false) }
 
-    // Keep WebView creation off the first Compose frame so the normal RikkaHub UI stays responsive.
     LaunchedEffect(Unit) {
         kotlinx.coroutines.delay(500L)
         ready = true
     }
 
-    // RouteActivity may give this composable the full screen. The WebView itself must stay
-    // confined to the widget corner so it cannot intercept taps or IME input elsewhere.
     Box(modifier = modifier) {
         if (ready) {
             AndroidView(
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .width(320.dp)
-                    .height(320.dp),
+                modifier = Modifier.fillMaxSize(),
                 factory = { context ->
                     DaFeiYuWebView(context).apply {
                         setBackgroundColor(Color.TRANSPARENT)
@@ -55,8 +44,7 @@ fun DaFeiYuWidget(modifier: Modifier = Modifier) {
                         isHorizontalScrollBarEnabled = false
                         isFocusable = false
                         isFocusableInTouchMode = false
-                        importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-                        overScrollMode = View.OVER_SCROLL_NEVER
+                        overScrollMode = WebView.OVER_SCROLL_NEVER
 
                         webViewClient = DaFeiYuWebViewClient(context)
                         val script = context.assets.open("dafeiyu/whale-widget.js").bufferedReader().use { it.readText() }
@@ -76,10 +64,6 @@ fun DaFeiYuWidget(modifier: Modifier = Modifier) {
                         """.trimIndent()
                         loadDataWithBaseURL("https://rikkahub.local/", html, "text/html", "UTF-8", null)
                     }
-                },
-                onRelease = { webView ->
-                    webView.stopLoading()
-                    webView.destroy()
                 },
             )
         }
