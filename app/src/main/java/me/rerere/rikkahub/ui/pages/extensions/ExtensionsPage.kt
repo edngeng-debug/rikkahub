@@ -38,8 +38,6 @@ import me.rerere.rikkahub.ui.context.LocalSettings
 import me.rerere.rikkahub.ui.theme.CustomColors
 import me.rerere.rikkahub.utils.plus
 
-private const val WHALE_WIDGET_URL = "rikkahub://whale-widget"
-
 @Composable
 fun ExtensionsPage() {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -71,13 +69,25 @@ fun ExtensionsPage() {
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         containerColor = CustomColors.topBarColors.containerColor
     ) { innerPadding ->
-        LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = innerPadding + PaddingValues(8.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = innerPadding + PaddingValues(8.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
             item {
-                CardGroup(modifier = Modifier.padding(horizontal = 8.dp), title = { Text(stringResource(R.string.extensions_page_section_extensions)) }) {
+                CardGroup(
+                    modifier = Modifier.padding(horizontal = 8.dp),
+                    title = { Text(stringResource(R.string.extensions_page_section_extensions)) },
+                ) {
                     item(
                         onClick = {
                             if (!Settings.canDrawOverlays(context)) {
-                                overlayPermissionLauncher.launch(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${context.packageName}")))
+                                overlayPermissionLauncher.launch(
+                                    Intent(
+                                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                        Uri.parse("package:${context.packageName}")
+                                    )
+                                )
                             } else if (deepSeekKey.isNotBlank()) {
                                 DeepSeekPetService.start(context, deepSeekKey)
                             } else {
@@ -86,13 +96,32 @@ fun ExtensionsPage() {
                         },
                         leadingContent = { Icon(HugeIcons.Zap, null) },
                         headlineContent = { Text("🐳 DeepSeek 娘桌宠") },
-                        supportingContent = { Text("点击、捏一下、拖着走；首次使用需要开启悬浮窗权限") },
+                        supportingContent = { Text("使用原版小鲸鱼资源；点击、长按、拖动均可互动") },
                     )
-                    item(onClick = { navController.navigate(Screen.WebView(WHALE_WIDGET_URL)) }, leadingContent = { Icon(HugeIcons.Zap, null) }, headlineContent = { Text("小鲸鱼记账详情") }, supportingContent = { Text("DeepSeek 余额与今日用量") })
-                    item(onClick = { navController.navigate(Screen.QuickMessages) }, leadingContent = { Icon(HugeIcons.Zap, null) }, headlineContent = { Text(stringResource(R.string.assistant_page_quick_messages)) }, supportingContent = { Text(stringResource(R.string.extensions_page_quick_messages_desc)) })
-                    item(onClick = { navController.navigate(Screen.Prompts) }, leadingContent = { Icon(HugeIcons.Book03, null) }, headlineContent = { Text(stringResource(R.string.extensions_page_prompts)) }, supportingContent = { Text(stringResource(R.string.extensions_page_prompts_desc)) })
-                    item(onClick = { navController.navigate(Screen.Skills) }, leadingContent = { Icon(HugeIcons.Puzzle, null) }, headlineContent = { Text(stringResource(R.string.extensions_page_agent_skills)) }, supportingContent = { Text(stringResource(R.string.extensions_page_agent_skills_desc)) })
-                    item(onClick = { navController.navigate(Screen.Workspaces) }, leadingContent = { Icon(HugeIcons.Folder01, null) }, headlineContent = { Text(stringResource(R.string.extensions_page_workspace)) }, supportingContent = { Text(stringResource(R.string.extensions_page_workspace_desc)) })
+                    item(
+                        onClick = { navController.navigate(Screen.QuickMessages) },
+                        leadingContent = { Icon(HugeIcons.Zap, null) },
+                        headlineContent = { Text(stringResource(R.string.assistant_page_quick_messages)) },
+                        supportingContent = { Text(stringResource(R.string.extensions_page_quick_messages_desc)) },
+                    )
+                    item(
+                        onClick = { navController.navigate(Screen.Prompts) },
+                        leadingContent = { Icon(HugeIcons.Book03, null) },
+                        headlineContent = { Text(stringResource(R.string.extensions_page_prompts)) },
+                        supportingContent = { Text(stringResource(R.string.extensions_page_prompts_desc)) },
+                    )
+                    item(
+                        onClick = { navController.navigate(Screen.Skills) },
+                        leadingContent = { Icon(HugeIcons.Puzzle, null) },
+                        headlineContent = { Text(stringResource(R.string.extensions_page_agent_skills)) },
+                        supportingContent = { Text(stringResource(R.string.extensions_page_agent_skills_desc)) },
+                    )
+                    item(
+                        onClick = { navController.navigate(Screen.Workspaces) },
+                        leadingContent = { Icon(HugeIcons.Folder01, null) },
+                        headlineContent = { Text(stringResource(R.string.extensions_page_workspace)) },
+                        supportingContent = { Text(stringResource(R.string.extensions_page_workspace_desc)) },
+                    )
                 }
             }
         }
