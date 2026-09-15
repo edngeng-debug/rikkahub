@@ -83,8 +83,6 @@ import me.rerere.rikkahub.utils.writeClipboardText
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
 
-private const val WHALE_WIDGET_URL = "rikkahub://whale-widget"
-
 @Composable
 fun SettingPage(vm: SettingVM = koinViewModel()) {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -124,13 +122,8 @@ fun SettingPage(vm: SettingVM = koinViewModel()) {
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         containerColor = CustomColors.topBarColors.containerColor
     ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = innerPadding + PaddingValues(8.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
+        LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = innerPadding + PaddingValues(8.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             if (settings.isNotConfigured()) item { ProviderConfigWarningCard(navController) }
-
             item("generalSettings") {
                 var colorMode by rememberColorMode()
                 val selectedColorModeText = when (colorMode) {
@@ -162,33 +155,12 @@ fun SettingPage(vm: SettingVM = koinViewModel()) {
                         headlineContent = { Text(stringResource(R.string.setting_page_color_mode)) },
                         supportingContent = { Text(selectedColorModeText) },
                     )
-                    item(
-                        onClick = { navController.navigate(Screen.SettingPreferences) },
-                        leadingContent = { Icon(HugeIcons.Settings03, null) },
-                        supportingContent = { Text(stringResource(R.string.setting_page_preferences_desc)) },
-                        headlineContent = { Text(stringResource(R.string.setting_page_preferences)) },
-                    )
-                    item(
-                        onClick = { navController.navigate(Screen.Assistant) },
-                        leadingContent = { Icon(HugeIcons.LookTop, null) },
-                        supportingContent = { Text(stringResource(R.string.setting_page_assistant_desc)) },
-                        headlineContent = { Text(stringResource(R.string.setting_page_assistant)) },
-                    )
-                    item(
-                        onClick = { navController.navigate(Screen.Extensions) },
-                        leadingContent = { Icon(HugeIcons.Package, null) },
-                        supportingContent = { Text(stringResource(R.string.setting_page_extensions_desc)) },
-                        headlineContent = { Text(stringResource(R.string.setting_page_extensions)) },
-                    )
-                    item(
-                        onClick = { navController.navigate(Screen.WebView(WHALE_WIDGET_URL)) },
-                        leadingContent = { Text("🐳", style = MaterialTheme.typography.titleLarge) },
-                        supportingContent = { Text("打开原版 DeepSeek 小鲸鱼详情") },
-                        headlineContent = { Text("小鲸鱼记账") },
-                    )
+                    item(onClick = { navController.navigate(Screen.SettingPreferences) }, leadingContent = { Icon(HugeIcons.Settings03, null) }, supportingContent = { Text(stringResource(R.string.setting_page_preferences_desc)) }, headlineContent = { Text(stringResource(R.string.setting_page_preferences)) })
+                    item(onClick = { navController.navigate(Screen.Assistant) }, leadingContent = { Icon(HugeIcons.LookTop, null) }, supportingContent = { Text(stringResource(R.string.setting_page_assistant_desc)) }, headlineContent = { Text(stringResource(R.string.setting_page_assistant)) })
+                    item(onClick = { navController.navigate(Screen.Extensions) }, leadingContent = { Icon(HugeIcons.Package, null) }, supportingContent = { Text(stringResource(R.string.setting_page_extensions_desc)) }, headlineContent = { Text(stringResource(R.string.setting_page_extensions)) })
+                    item(onClick = { navController.navigate(Screen.Extensions) }, leadingContent = { Text("🐳", style = MaterialTheme.typography.titleLarge) }, supportingContent = { Text("在扩展中启动原版 DeepSeek 小鲸鱼") }, headlineContent = { Text("DeepSeek 娘桌宠") })
                 }
             }
-
             item("modelServices") {
                 CardGroup(modifier = Modifier.padding(horizontal = 8.dp), title = { Text(stringResource(R.string.setting_page_model_and_services)) }) {
                     item(onClick = { navController.navigate(Screen.SettingModels) }, leadingContent = { Icon(HugeIcons.AiMagic, null) }, supportingContent = { Text(stringResource(R.string.setting_page_default_model_desc)) }, headlineContent = { Text(stringResource(R.string.setting_page_default_model)) })
@@ -199,55 +171,31 @@ fun SettingPage(vm: SettingVM = koinViewModel()) {
                     item(onClick = { navController.navigate(Screen.SettingWeb) }, leadingContent = { Icon(HugeIcons.ServerStack01, null) }, supportingContent = { Text(stringResource(R.string.setting_page_web_server_desc)) }, headlineContent = { Text(stringResource(R.string.setting_page_web_server)) })
                 }
             }
-
             item("dataSettings") {
                 val storageState by produceState(-1 to 0L) { value = filesManager.countChatFiles() }
                 CardGroup(modifier = Modifier.padding(horizontal = 8.dp), title = { Text(stringResource(R.string.setting_page_data_settings)) }) {
                     item(onClick = { navController.navigate(Screen.Backup) }, leadingContent = { Icon(HugeIcons.Database02, null) }, supportingContent = { Text(stringResource(R.string.setting_page_data_backup_desc)) }, headlineContent = { Text(stringResource(R.string.setting_page_data_backup)) })
-                    item(
-                        onClick = { navController.navigate(Screen.SettingFiles) },
-                        leadingContent = { Icon(HugeIcons.ImageUpload, null) },
-                        supportingContent = {
-                            if (storageState.first == -1) Text(stringResource(R.string.calculating))
-                            else Text(stringResource(R.string.setting_page_chat_storage_desc, storageState.first, storageState.second / 1024 / 1024.0))
-                        },
-                        headlineContent = { Text(stringResource(R.string.setting_page_chat_storage)) },
-                    )
+                    item(onClick = { navController.navigate(Screen.SettingFiles) }, leadingContent = { Icon(HugeIcons.ImageUpload, null) }, supportingContent = { if (storageState.first == -1) Text(stringResource(R.string.calculating)) else Text(stringResource(R.string.setting_page_chat_storage_desc, storageState.first, storageState.second / 1024 / 1024.0)) }, headlineContent = { Text(stringResource(R.string.setting_page_chat_storage)) })
                 }
             }
-
             item("aboutSettings") {
                 val context = LocalContext.current
                 val shareText = stringResource(R.string.setting_page_share_text)
                 val share = stringResource(R.string.setting_page_share)
                 val noShareApp = stringResource(R.string.setting_page_no_share_app)
                 CardGroup(modifier = Modifier.padding(horizontal = 8.dp), title = { Text(stringResource(R.string.setting_page_about)) }) {
-                    item(
-                        onClick = { navController.navigate(Screen.SettingAbout) },
-                        leadingContent = { Icon(HugeIcons.Clapping01, null) },
-                        supportingContent = { Text(stringResource(R.string.setting_page_about_desc)) },
-                        trailingContent = {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                var showQQGroupSheet by remember { mutableStateOf(false) }
-                                IconButton(onClick = { showQQGroupSheet = true }) { Icon(imageVector = TencentQQIcon, contentDescription = "QQ", tint = MaterialTheme.colorScheme.secondary) }
-                                if (showQQGroupSheet) QQGroupBottomSheet(onDismiss = { showQQGroupSheet = false })
-                                IconButton(onClick = { context.openUrl("https://discord.gg/9weBqxe5c4") }) { Icon(imageVector = DiscordIcon, contentDescription = "Discord", tint = MaterialTheme.colorScheme.secondary) }
-                            }
-                        },
-                        headlineContent = { Text(stringResource(R.string.setting_page_about)) },
-                    )
+                    item(onClick = { navController.navigate(Screen.SettingAbout) }, leadingContent = { Icon(HugeIcons.Clapping01, null) }, supportingContent = { Text(stringResource(R.string.setting_page_about_desc)) }, trailingContent = {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            var showQQGroupSheet by remember { mutableStateOf(false) }
+                            IconButton(onClick = { showQQGroupSheet = true }) { Icon(imageVector = TencentQQIcon, contentDescription = "QQ", tint = MaterialTheme.colorScheme.secondary) }
+                            if (showQQGroupSheet) QQGroupBottomSheet(onDismiss = { showQQGroupSheet = false })
+                            IconButton(onClick = { context.openUrl("https://discord.gg/9weBqxe5c4") }) { Icon(imageVector = DiscordIcon, contentDescription = "Discord", tint = MaterialTheme.colorScheme.secondary) }
+                        }
+                    }, headlineContent = { Text(stringResource(R.string.setting_page_about)) })
                     item(onClick = { val docUrl = if (java.util.Locale.getDefault().language == "zh") "https://docs.rikka-ai.com/zh/introduction" else "https://docs.rikka-ai.com/introduction"; context.openUrl(docUrl) }, leadingContent = { Icon(HugeIcons.Book01, null) }, supportingContent = { Text(stringResource(R.string.setting_page_documentation_desc)) }, headlineContent = { Text(stringResource(R.string.setting_page_documentation)) })
                     item(onClick = { navController.navigate(Screen.Log) }, leadingContent = { Icon(HugeIcons.Bookshelf01, null) }, supportingContent = { Text(stringResource(R.string.setting_page_request_logs_desc)) }, headlineContent = { Text(stringResource(R.string.setting_page_request_logs)) })
                     item(onClick = { navController.navigate(Screen.SettingDonate) }, leadingContent = { Icon(HugeIcons.InLove, null) }, supportingContent = { Text(stringResource(R.string.setting_page_donate_desc)) }, headlineContent = { Text(stringResource(R.string.setting_page_donate)) })
-                    item(
-                        onClick = {
-                            val intent = Intent(Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(Intent.EXTRA_TEXT, shareText) }
-                            try { context.startActivity(Intent.createChooser(intent, share)) } catch (e: ActivityNotFoundException) { Toast.makeText(context, noShareApp, Toast.LENGTH_SHORT).show() }
-                        },
-                        leadingContent = { Icon(HugeIcons.Share04, null) },
-                        supportingContent = { Text(stringResource(R.string.setting_page_share_desc)) },
-                        headlineContent = { Text(stringResource(R.string.setting_page_share)) },
-                    )
+                    item(onClick = { val intent = Intent(Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(Intent.EXTRA_TEXT, shareText) }; try { context.startActivity(Intent.createChooser(intent, share)) } catch (e: ActivityNotFoundException) { Toast.makeText(context, noShareApp, Toast.LENGTH_SHORT).show() } }, leadingContent = { Icon(HugeIcons.Share04, null) }, supportingContent = { Text(stringResource(R.string.setting_page_share_desc)) }, headlineContent = { Text(stringResource(R.string.setting_page_share)) })
                 }
             }
         }
@@ -278,17 +226,7 @@ private fun QQGroupBottomSheet(onDismiss: () -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             QQ_GROUPS.forEach { group ->
-                ListItem(
-                    onClick = {
-                        if (group.number != null) {
-                            context.writeClipboardText(group.number)
-                            Toast.makeText(context, "群号已复制", Toast.LENGTH_SHORT).show()
-                        } else context.joinQQGroup(group.key)
-                        onDismiss()
-                    },
-                    supportingContent = group.number?.let { number -> { Text(number) } },
-                    leadingContent = { Icon(imageVector = group.icon, contentDescription = null, tint = MaterialTheme.colorScheme.secondary) },
-                ) { Text(group.name) }
+                ListItem(onClick = { if (group.number != null) { context.writeClipboardText(group.number); Toast.makeText(context, "群号已复制", Toast.LENGTH_SHORT).show() } else context.joinQQGroup(group.key); onDismiss() }, supportingContent = group.number?.let { number -> { Text(number) } }, leadingContent = { Icon(imageVector = group.icon, contentDescription = null, tint = MaterialTheme.colorScheme.secondary) }) { Text(group.name) }
             }
         }
     }
