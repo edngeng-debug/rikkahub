@@ -54,6 +54,7 @@ fun DaFeiYuWidget(modifier: Modifier = Modifier) {
 
                         val script = context.assets.open("dafeiyu/whale-widget.js").bufferedReader().use { it.readText() }
                         val debugScript = context.assets.open("dafeiyu/debug.js").bufferedReader().use { it.readText() }
+                        val settingsJson = DaFeiYuSettingsStore.json(context)
                         val html = """
                             <!doctype html>
                             <html>
@@ -64,7 +65,7 @@ fun DaFeiYuWidget(modifier: Modifier = Modifier) {
                               <div id="root">
                                 <textarea aria-hidden="true" tabindex="-1" style="position:absolute;left:-99999px;top:-99999px;width:1px;height:1px;opacity:0"></textarea>
                               </div>
-                              <script>window.__RIKKAHUB_DAFEIYU_EMBEDDED=true;</script>
+                              <script>window.__RIKKAHUB_DAFEIYU_EMBEDDED=true;window.__RIKKAHUB_DAFEIYU_SETTINGS=$settingsJson;</script>
                               <script>$script</script>
                               <script>$debugScript</script>
                             </body>
