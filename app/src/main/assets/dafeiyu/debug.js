@@ -19,7 +19,7 @@
   function reportRect(){
     try{
       var r=document.querySelector('.dshwv-root');
-      if(r&&window.RikkaDaFeiYu){var b=r.getBoundingClientRect();window.RikkaDaFeiYu.setWidgetRect(b.left,b.top,b.right,b.bottom)}
+      if(r&&window.RikkaDaFeiYu){var b=r.getBoundingClientRect();window.RikkaDaFeiYu.setWidgetRect(b.left,b.top,b.right,b.bottom,window.innerWidth,window.innerHeight)}
     }catch(e){}
   }
   function wait(){var m=document.querySelector('.dshwv-menuview'),r=document.querySelector('.dshwv-root');if(!m||!r){setTimeout(wait,200);return}inject(m);observe();sync();reportRect();setInterval(function(){sync();reportRect()},250)}
