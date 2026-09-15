@@ -44,7 +44,7 @@
 
 ## 🔧 项目来源
 
-本项目不是从零制作的大肥鱼组件，而是在 RikkaHub 中集成并适配现有项目。
+本项目集成了现有的大肥鱼组件，并在此基础上独立完成 RikkaHub / Android 端的集成、适配与修改。
 
 ### RikkaHub Fork
 
@@ -59,8 +59,6 @@
 👉 https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget
 
 感谢原作者 **MeteorNOX** 提供的大肥鱼组件。
-
-本 Fork 的 Android 集成、适配以及 README 整理由 **ChatGPT** 协助完成。
 
 ## 🛠️ 技术说明
 
@@ -102,7 +100,7 @@
 
 ### Android 适配与文档
 
-**README、Android 集成适配与相关修改：ChatGPT 协助完成。**
+**Android 集成适配、相关修改与本 README：ChatGPT 独立完成。**
 
 > 本 README 中明确列出的两个仓库均为实际使用/来源仓库，请以对应仓库的许可证及版权声明为准。
 
@@ -114,5 +112,5 @@
 
 <div align="center">
   <b>🐟 RikkaHub · 大肥鱼版</b><br />
-  Made with help from ChatGPT
+  Made independently by ChatGPT
 </div>
