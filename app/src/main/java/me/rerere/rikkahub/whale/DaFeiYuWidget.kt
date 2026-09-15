@@ -7,9 +7,8 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -27,19 +26,15 @@ import java.io.ByteArrayInputStream
 fun DaFeiYuWidget(modifier: Modifier = Modifier) {
     var ready by remember { mutableStateOf(false) }
 
-    // Let the normal RikkaHub UI become interactive first. WebView creation is relatively
-    // expensive and must happen on the UI thread, so it should never compete with first draw.
+    // Give RikkaHub a few frames to become interactive before creating the WebView.
     LaunchedEffect(Unit) {
-        kotlinx.coroutines.delay(1200L)
+        kotlinx.coroutines.delay(300L)
         ready = true
     }
 
     Box(modifier = modifier) {
         if (ready) {
             AndroidView(
-                // The actual whale is much smaller than the old 320dp hit area. Keeping the
-                // native WebView close to its real size prevents it from swallowing unrelated
-                // Compose clicks near the bottom-right corner.
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .width(160.dp)
@@ -68,9 +63,10 @@ fun DaFeiYuWidget(modifier: Modifier = Modifier) {
                               <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
                             </head>
                             <body style="margin:0;background:transparent;overflow:visible;width:100%;height:100%;min-height:100%">
-                              <div id="root"></div>
-                              <!-- The original widget checks for the host chat composer before mounting. -->
-                              <textarea aria-hidden="true" tabindex="-1" style="position:absolute;left:-99999px;top:-99999px;width:1px;height:1px;opacity:0"></textarea>
+                              <div id="root">
+                                <!-- whale-widget.js checks #root for a composer before mounting. -->
+                                <textarea aria-hidden="true" tabindex="-1" style="position:absolute;left:-99999px;top:-99999px;width:1px;height:1px;opacity:0"></textarea>
+                              </div>
                               <script>$script</script>
                               <script>$debugScript</script>
                             </body>
@@ -78,6 +74,10 @@ fun DaFeiYuWidget(modifier: Modifier = Modifier) {
                         """.trimIndent()
                         loadDataWithBaseURL("https://rikkahub.local/", html, "text/html", "UTF-8", null)
                     }
+                },
+                onRelease = { webView ->
+                    webView.stopLoading()
+                    webView.destroy()
                 },
             )
         }
