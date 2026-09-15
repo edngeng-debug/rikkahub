@@ -1,97 +1,104 @@
 package me.rerere.rikkahub.ui.pages.extensions
 
-import android.annotation.SuppressLint
-import android.graphics.Color
-import android.webkit.JavascriptInterface
-import android.webkit.WebResourceRequest
-import android.webkit.WebResourceResponse
-import android.webkit.WebView
-import android.webkit.WebViewClient
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.Scaffold
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
-import androidx.compose.runtime.Composable
+import androidx.compose.material3.Scaffold
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.viewinterop.AndroidView
-import me.rerere.rikkahub.ui.components.nav.BackButton
-import me.rerere.rikkahub.ui.theme.CustomColors
-import me.rerere.rikkahub.whale.DaFeiYuSettingsStore
-import java.io.ByteArrayInputStream
+import androidx.compose.ui.unit.dp
+import me.rere.rikkahub.ui.components.nav.BackButton
+import me.rere.rikkahub.ui.theme.CustomColors
+import me.rere.rikkahub.whale.DaFeiYuSettings
+import me.rere.rikkahub.whale.DaFeiYuSettingsStore
 
-@SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun DaFeiYuSettingsPage() {
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("大肥鱼设置") },
-                navigationIcon = { BackButton() },
-                colors = CustomColors.topBarColors,
-            )
-        },
-        containerColor = CustomColors.topBarColors.containerColor,
-    ) { innerPadding ->
-        Box(modifier = Modifier.fillMaxSize()) {
-            AndroidView(
-                modifier = Modifier.fillMaxSize(),
-                factory = { context ->
-                    DaFeiYuSettingsWebView(context).apply {
-                        setBackgroundColor(Color.TRANSPARENT)
-                        settings.javaScriptEnabled = true
-                        settings.domStorageEnabled = true
-                        settings.allowFileAccess = false
-                        settings.allowContentAccess = false
-                        settings.mediaPlaybackRequiresUserGesture = false
-                        isVerticalScrollBarEnabled = false
-                        isHorizontalScrollBarEnabled = false
-                        webViewClient = SettingsWebViewClient(context)
-                        addJavascriptInterface(SettingsBridge(context), "RikkaDaFeiYuSettings")
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var settings by remember { mutableStateOf(DaFeiYuSettingsStore.load(context)) }
+    fun save(next: DaFeiYuSettings) { settings = next; DaFeiYuSettingsStore.save(context, next) }
 
-                        val script = context.assets.open("dafeiyu/whale-widget.js").bufferedReader().use { it.readText() }
-                        val html = """
-                            <!doctype html><html><head>
-                            <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-                            </head><body style="margin:0;background:transparent;overflow:auto;width:100%;height:100%">
-                            <div id="root"><textarea aria-hidden="true" tabindex="-1" style="position:absolute;left:-99999px;top:-99999px;width:1px;height:1px;opacity:0"></textarea></div>
-                            <script>window.__RIKKAHUB_DAFEIYU_EMBEDDED=true;</script>
-                            <script>(function(){var f=window.fetch;window.fetch=function(input,init){try{var u=typeof input==='string'?input:(input&&input.url)||'';var m=((init&&init.method)||((input&&input.method)||'GET')).toUpperCase();if(u.indexOf('/dsh-whale/size.json')>=0){if(m==='PUT'){window.RikkaDaFeiYuSettings.saveSize((init&&init.body)||'{}');return Promise.resolve(new Response(JSON.stringify({ok:true}),{status:200,headers:{'Content-Type':'application/json'}}));}return Promise.resolve(new Response(window.RikkaDaFeiYuSettings.getSize(),{status:200,headers:{'Content-Type':'application/json'}}));}if(u.indexOf('/dsh-whale/usage-settings.json')>=0){if(m==='PUT'){window.RikkaDaFeiYuSettings.saveUsage((init&&init.body)||'{}');return Promise.resolve(new Response(JSON.stringify({ok:true,settings:{}}),{status:200,headers:{'Content-Type':'application/json'}}));}return Promise.resolve(new Response(window.RikkaDaFeiYuSettings.getUsage(),{status:200,headers:{'Content-Type':'application/json'}}));}}catch(e){}return f.apply(this,arguments)}})();</script>
-                            <script>$script</script>
-                            <script>setTimeout(function(){var n=0,t=setInterval(function(){n++;var b=document.querySelector('.dshwv-menu-btn');if(b){clearInterval(t);try{b.click()}catch(e){}}if(n>20)clearInterval(t)},250)},250);</script>
-                            </body></html>
-                        """.trimIndent()
-                        loadDataWithBaseURL("https://rikkahub.local/", html, "text/html", "UTF-8", null)
-                    }
-                },
-                onRelease = { webView -> webView.stopLoading(); webView.destroy() },
-            )
+    Scaffold(
+        topBar = { TopAppBar(title = { Text("大肥鱼") }, navigationIcon = { BackButton() }, colors = CustomColors.topBarColors) },
+        containerColor = CustomColors.topBarColors.containerColor,
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            item { Text("显示与交互", style = androidx.compose.material3.MaterialTheme.typography.titleMedium) }
+            item {
+                SettingSwitch("气泡", "显示大肥鱼的对话气泡", settings.bubbleOn) { save(settings.copy(bubbleOn = it)) }
+            }
+            item {
+                SettingSwitch("菜单按钮", "聊天界面不显示菜单按钮", !settings.menuBtnHide) { save(settings.copy(menuBtnHide = !it)) }
+            }
+            item { Text("音效", style = androidx.compose.material3.MaterialTheme.typography.titleMedium) }
+            item { SettingSwitch("启用音效", "拖动和松开时播放音效", settings.sound) { save(settings.copy(sound = it)) } }
+            item {
+                Column(Modifier.fillMaxWidth()) {
+                    Text("音量：${(settings.vol * 100).toInt()}%")
+                    Slider(value = settings.vol, onValueChange = { save(settings.copy(vol = it)) }, valueRange = 0f..1f)
+                }
+            }
+            item { Text("用量显示", style = androidx.compose.material3.MaterialTheme.typography.titleMedium) }
+            item {
+                SettingChoice("用量模式", settings.usageMode, listOf("ledger" to "记账", "daily" to "每日", "off" to "关闭")) { save(settings.copy(usageMode = it)) }
+            }
+            item {
+                SettingChoice("峰值模式", settings.peakMode, listOf("default" to "默认", "auto" to "自动", "off" to "关闭")) { save(settings.copy(peakMode = it)) }
+            }
+            item { Text("回合扣费", style = androidx.compose.material3.MaterialTheme.typography.titleMedium) }
+            item { SettingSwitch("显示回合扣费", "在气泡中显示本回合费用", settings.turnCostOn) { save(settings.copy(turnCostOn = it)) } }
+            item {
+                Column(Modifier.fillMaxWidth()) {
+                    Text("扣费提示关闭时间：${settings.turnCostCloseMs / 1000} 秒")
+                    Slider(value = settings.turnCostCloseMs.toFloat(), onValueChange = { save(settings.copy(turnCostCloseMs = it.toLong())) }, valueRange = 1000f..15000f)
+                }
+            }
+            item { Text("滚动间距", style = androidx.compose.material3.MaterialTheme.typography.titleMedium) }
+            item { SettingSwitch("启用滚动间距", "调整挂件与输入区域的间距", settings.scrollGapOn) { save(settings.copy(scrollGapOn = it)) } }
+            item {
+                Column(Modifier.fillMaxWidth()) {
+                    Text("间距：${settings.scrollGapPx}px")
+                    Slider(value = settings.scrollGapPx.toFloat(), onValueChange = { save(settings.copy(scrollGapPx = it.toInt())) }, valueRange = 0f..60f)
+                }
+            }
+            item {
+                Button(onClick = { save(DaFeiYuSettings()) }, modifier = Modifier.fillMaxWidth()) { Text("恢复默认设置") }
+            }
         }
     }
 }
 
-private class DaFeiYuSettingsWebView(context: android.content.Context) : WebView(context)
-
-private class SettingsBridge(private val context: android.content.Context) {
-    @JavascriptInterface fun getSize(): String = DaFeiYuSettingsStore.json(context)
-    @JavascriptInterface fun saveSize(json: String) { DaFeiYuSettingsStore.updateFromJson(context, json) }
-    @JavascriptInterface fun getUsage(): String = DaFeiYuSettingsStore.usageJson(context)
-    @JavascriptInterface fun saveUsage(json: String) { DaFeiYuSettingsStore.saveUsagePatch(context, json) }
+@Composable private fun SettingSwitch(title: String, summary: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f).padding(vertical = 8.dp)) { Text(title); Text(summary, style = androidx.compose.material3.MaterialTheme.typography.bodySmall) }
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
+    }
 }
 
-private class SettingsWebViewClient(private val context: android.content.Context) : WebViewClient() {
-    override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest): WebResourceResponse? = when (request.url.path) {
-        "/dsh-whale/image.png" -> asset("dafeiyu/DSniang1.png", "image/png")
-        "/dsh-whale/rua.gif" -> asset("dafeiyu/rua.gif", "image/gif")
-        "/dsh-whale/sound/press.mp3" -> asset(if (request.url.getQueryParameter("set") == "fx1") "dafeiyu/D1.mp3" else "dafeiyu/Ya1.mp3", "audio/mpeg")
-        "/dsh-whale/sound/release.mp3" -> asset(if (request.url.getQueryParameter("set") == "fx1") "dafeiyu/D2.mp3" else "dafeiyu/Ya2.mp3", "audio/mpeg")
-        "/dsh-whale/balance.json" -> json("{\"balance\":0,\"currency\":\"CNY\"}")
-        "/dsh-whale/size.json" -> json(DaFeiYuSettingsStore.json(context))
-        "/dsh-whale/usage-settings.json" -> json(DaFeiYuSettingsStore.usageJson(context))
-        "/dsh-whale/last-turn.json" -> json("{\"seq\":0,\"cost\":0}")
-        "/dsh-whale/bubble.json" -> json("{\"ok\":true,\"config\":{\"lib\":[]}}")
-        else -> super.shouldInterceptRequest(view, request)
+@Composable private fun SettingChoice(title: String, value: String, choices: List<Pair<String,String>>, onChange: (String) -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+        Text(title)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            choices.forEach { (key,label) ->
+                Button(onClick = { onChange(key) }, modifier = Modifier.weight(1f)) { Text(if (value == key) "✓ $label" else label) }
+            }
+        }
     }
-    private fun asset(path: String, mime: String) = WebResourceResponse(mime, null, context.assets.open(path))
-    private fun json(body: String) = WebResourceResponse("application/json", "UTF-8", ByteArrayInputStream(body.toByteArray(Charsets.UTF_8)))
 }
