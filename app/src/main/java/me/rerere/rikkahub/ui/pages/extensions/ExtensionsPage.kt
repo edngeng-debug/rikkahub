@@ -29,11 +29,9 @@ import me.rerere.hugeicons.stroke.Folder01
 import me.rerere.hugeicons.stroke.Puzzle
 import me.rerere.hugeicons.stroke.Zap
 import me.rerere.rikkahub.R
-import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.service.DeepSeekPetService
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.components.ui.CardGroup
-import me.rerere.rikkahub.ui.context.LocalNavController
 import me.rerere.rikkahub.ui.context.LocalSettings
 import me.rerere.rikkahub.ui.theme.CustomColors
 import me.rerere.rikkahub.utils.plus
@@ -41,7 +39,6 @@ import me.rerere.rikkahub.utils.plus
 @Composable
 fun ExtensionsPage() {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
-    val navController = LocalNavController.current
     val context = LocalContext.current
     val settings = LocalSettings.current
     val deepSeekKey = settings.providers
@@ -95,8 +92,8 @@ fun ExtensionsPage() {
                             }
                         },
                         leadingContent = { Icon(HugeIcons.Zap, null) },
-                        headlineContent = { Text("🐳 DeepSeek 娘桌宠") },
-                        supportingContent = { Text("使用原版小鲸鱼资源；点击、长按、拖动均可互动") },
+                        headlineContent = { Text("🐟 DeepSeek 娘大肥鱼") },
+                        supportingContent = { Text("使用原版大肥鱼资源；点击、长按、拖动均可互动") },
                     )
                     item(
                         onClick = { navController.navigate(Screen.QuickMessages) },
