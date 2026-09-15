@@ -1,5 +1,11 @@
 package me.rerere.rikkahub.ui.pages.extensions
 
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,19 +19,22 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import me.rerere.ai.provider.ProviderSetting
 import me.rerere.hugeicons.HugeIcons
-import me.rerere.rikkahub.R
 import me.rerere.hugeicons.stroke.Book03
-import me.rerere.hugeicons.stroke.File02
 import me.rerere.hugeicons.stroke.Folder01
 import me.rerere.hugeicons.stroke.Puzzle
 import me.rerere.hugeicons.stroke.Zap
+import me.rerere.rikkahub.R
 import me.rerere.rikkahub.Screen
+import me.rerere.rikkahub.service.DeepSeekPetService
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.components.ui.CardGroup
 import me.rerere.rikkahub.ui.context.LocalNavController
+import me.rerere.rikkahub.ui.context.LocalSettings
 import me.rerere.rikkahub.ui.theme.CustomColors
 import me.rerere.rikkahub.utils.plus
 
@@ -33,6 +42,20 @@ import me.rerere.rikkahub.utils.plus
 fun ExtensionsPage() {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val navController = LocalNavController.current
+    val context = LocalContext.current
+    val settings = LocalSettings.current
+    val deepSeekKey = settings.providers
+        .filterIsInstance<ProviderSetting.OpenAI>()
+        .firstOrNull { it.name == "DeepSeek" }
+        ?.apiKey
+        .orEmpty()
+
+    val overlayPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        if (Settings.canDrawOverlays(context)) {
+            if (deepSeekKey.isNotBlank()) DeepSeekPetService.start(context, deepSeekKey)
+            else Toast.makeText(context, "请先在 RikkaHub 中配置 DeepSeek API Key", Toast.LENGTH_LONG).show()
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -56,6 +79,25 @@ fun ExtensionsPage() {
                     modifier = Modifier.padding(horizontal = 8.dp),
                     title = { Text(stringResource(R.string.extensions_page_section_extensions)) },
                 ) {
+                    item(
+                        onClick = {
+                            if (!Settings.canDrawOverlays(context)) {
+                                overlayPermissionLauncher.launch(
+                                    Intent(
+                                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                        Uri.parse("package:${context.packageName}")
+                                    )
+                                )
+                            } else if (deepSeekKey.isNotBlank()) {
+                                DeepSeekPetService.start(context, deepSeekKey)
+                            } else {
+                                Toast.makeText(context, "请先在 RikkaHub 中配置 DeepSeek API Key", Toast.LENGTH_LONG).show()
+                            }
+                        },
+                        leadingContent = { Icon(HugeIcons.Zap, null) },
+                        headlineContent = { Text("🐟 DeepSeek 娘大肥鱼") },
+                        supportingContent = { Text("使用原版大肥鱼资源；点击、长按、拖动均可互动") },
+                    )
                     item(
                         onClick = { navController.navigate(Screen.QuickMessages) },
                         leadingContent = { Icon(HugeIcons.Zap, null) },

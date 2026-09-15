@@ -5,6 +5,8 @@ import kotlinx.datetime.toInstant
 import me.rerere.ai.core.MessageRole
 import me.rerere.ai.ui.UIMessage
 import me.rerere.ai.ui.UIMessagePart
+import me.rerere.rikkahub.data.ai.WhaleUsageStore
+import me.rerere.rikkahub.data.datastore.findProvider
 import kotlin.time.Clock
 import kotlin.time.Instant
 
@@ -26,10 +28,20 @@ object ThinkTagTransformer : OutputMessageTransformer {
         ctx: TransformerContext,
         messages: List<UIMessage>,
     ): List<UIMessage> {
-        return messages.transformThinkTags(
+        val result = messages.transformThinkTags(
             now = Clock.System.now(),
             generationFinished = true,
         )
+        val providerName = ctx.model.findProvider(ctx.settings.providers)?.name
+        result.lastOrNull()?.usage?.let { usage ->
+            WhaleUsageStore.record(
+                context = ctx.context,
+                providerName = providerName,
+                modelId = ctx.model.modelId,
+                usage = usage,
+            )
+        }
+        return result
     }
 }
 

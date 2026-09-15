@@ -1,0 +1,108 @@
+name: Mobile Debug APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/deepseek-whale-widget
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Bundle upstream whale widget unchanged
+        run: |
+          # The Android WebView host intercepts /dsh-whale/* and reads these
+          # resources from the APK root assets directory. Keep the upstream
+          # JavaScript, artwork and audio byte-for-byte unchanged.
+          cp third_party/DeepSeek-Balance-Whale-Widget/assets/* app/src/main/assets/
+          test -f app/src/main/assets/whale-widget.js
+          test -f app/src/main/assets/DSniang1.png
+          test -f app/src/main/assets/DSniang02.png
+          test -f app/src/main/assets/rua.gif
+          test -f app/src/main/assets/Ya1.mp3
+          test -f app/src/main/assets/Ya2.mp3
+          test -f app/src/main/assets/D1.mp3
+          test -f app/src/main/assets/D2.mp3
+          test -f app/src/main/assets/bubble-money1.gif
+          test -f app/src/main/assets/bubble-petpet.gif
+          test -f app/src/main/assets/minecraft-exp-orb.wav
+          test -f app/src/main/assets/task-end-a.wav
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web-ui/pnpm-lock.yaml
+
+      - name: Install web-ui dependencies
+        working-directory: web-ui
+        run: pnpm install --frozen-lockfile
+
+      - name: Provide CI-only Google Services config
+        run: |
+          cat > app/google-services.json <<'EOF'
+          {
+            "project_info": {
+              "project_number": "000000000000",
+              "project_id": "rikkahub-ci",
+              "storage_bucket": "rikkahub-ci.appspot.com"
+            },
+            "client": [
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "1:000000000000:android:0000000000000000",
+                  "android_client_info": {
+                    "package_name": "me.rerere.rikkahub.debug"
+                  }
+                },
+                "api_key": [
+                  {
+                    "current_key": "AIzaSyAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+                  }
+                ],
+                "services": {}
+              }
+            ],
+            "configuration_version": "1"
+          }
+          EOF
+
+      - name: Build debug APK
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --stacktrace
+
+      - name: Verify APK output
+        run: |
+          echo "APK files:"
+          find app/build/outputs/apk/debug -maxdepth 1 -type f -name '*.apk' -print
+          test -n "$(find app/build/outputs/apk/debug -maxdepth 1 -type f -name '*.apk' -print -quit)"
+
+      - name: Upload APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rikkahub-mobile-debug
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
+
+# Build verification trigger: keep this workflow on the feature branch.
