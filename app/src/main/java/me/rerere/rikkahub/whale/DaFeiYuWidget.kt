@@ -29,7 +29,7 @@ fun DaFeiYuWidget(modifier: Modifier = Modifier) {
                     settings.mediaPlaybackRequiresUserGesture = false
                     isVerticalScrollBarEnabled = false
                     isHorizontalScrollBarEnabled = false
-                    webViewClient = DaFeiYuWebViewClient()
+                    webViewClient = DaFeiYuWebViewClient(context)
                     loadDataWithBaseURL(
                         "https://rikkahub.local/",
                         DaFeiYuWidgetHtml,
@@ -43,13 +43,11 @@ fun DaFeiYuWidget(modifier: Modifier = Modifier) {
     }
 }
 
-private class DaFeiYuWebViewClient : WebViewClient() {
-    override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest): WebResourceResponse? {
-        return when (request.url.path) {
-            "/dsh-whale/balance.json" -> json("{\"balance\":0,\"currency\":\"CNY\"}")
-            "/dsh-whale/size.json" -> json("{\"scale\":1,\"sound\":true,\"vol\":1,\"soundSet\":\"duck\",\"usageMode\":\"ledger\",\"peakMode\":\"auto\",\"bubbleOn\":true,\"turnCostOn\":true,\"turnCostCloseMs\":5000}")
-            else -> super.shouldInterceptRequest(view, request)
-        }
+private class DaFeiYuWebViewClient(private val context: android.content.Context) : WebViewClient() {
+    override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest): WebResourceResponse? = when (request.url.path) {
+        "/dsh-whale/balance.json" -> json("{\"balance\":0,\"currency\":\"CNY\"}")
+        "/dsh-whale/size.json" -> json("{\"scale\":1,\"sound\":true,\"vol\":1,\"soundSet\":\"duck\",\"usageMode\":\"ledger\",\"peakMode\":\"auto\",\"bubbleOn\":true,\"turnCostOn\":true,\"turnCostCloseMs\":5000}")
+        else -> super.shouldInterceptRequest(view, request)
     }
 
     private fun json(body: String) = WebResourceResponse(
@@ -67,4 +65,4 @@ private const val DaFeiYuWidgetHtml = """
 <script src="https://raw.githubusercontent.com/MeteorNOX/DeepSeek-Balance-Whale-Widget/main/assets/whale-widget.js"></script>
 </body></html>
 """
-// Trigger the corrected build workflow.
+// Trigger build after fixing pnpm setup order.
