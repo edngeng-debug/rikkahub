@@ -1,93 +1,143 @@
 package me.rerere.rikkahub.whale
 
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
+import android.os.Build
+import android.view.Gravity
 import android.view.MotionEvent
+import android.view.View
+import android.view.ViewGroup
 import android.webkit.JavascriptInterface
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.PopupWindow
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.platform.LocalView
 import java.io.ByteArrayInputStream
+
+private const val POPUP_DP = 260
+private const val HIT_DP = 170
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun DaFeiYuWidget(modifier: Modifier = Modifier) {
-    Box(modifier = modifier) {
-        AndroidView(
-            modifier = Modifier.fillMaxSize(),
-            factory = { context ->
-                DaFeiYuWebView(context).apply {
-                    setBackgroundColor(Color.TRANSPARENT)
-                    settings.javaScriptEnabled = true
-                    settings.domStorageEnabled = true
-                    settings.allowFileAccess = false
-                    settings.allowContentAccess = false
-                    settings.mediaPlaybackRequiresUserGesture = false
-                    isVerticalScrollBarEnabled = false
-                    isHorizontalScrollBarEnabled = false
-                    addJavascriptInterface(MenuStateBridge(this), "RikkaDaFeiYu")
-                    webViewClient = DaFeiYuWebViewClient(context)
-                    val script = context.assets.open("dafeiyu/whale-widget.js").bufferedReader().use { it.readText() }
-                    val debugScript = context.assets.open("dafeiyu/debug.js").bufferedReader().use { it.readText() }
-                    loadDataWithBaseURL(
-                        "https://rikkahub.local/",
-                        """
-                        <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"></head>
-                        <body style="margin:0;background:transparent;overflow:visible;width:100%;height:100%;min-height:100%"><div id="root"><textarea aria-hidden="true" style="position:absolute;left:-9999px"></textarea></div>
-                        <script>$script</script><script>$debugScript</script></body></html>
-                        """.trimIndent(),
-                        "text/html",
-                        "UTF-8",
-                        null,
-                    )
+    val hostView = LocalView.current
+    DisposableEffect(hostView) {
+        val context = hostView.context
+        val activity = context as? Activity
+        if (activity == null) {
+            onDispose { }
+        } else {
+            val density = context.resources.displayMetrics.density
+            val popupSize = (POPUP_DP * density).toInt()
+            val hitSize = (HIT_DP * density).toInt()
+            val decor = activity.window.decorView
+            val webView = DaFeiYuWebView(context)
+            webView.setBackgroundColor(Color.TRANSPARENT)
+            webView.settings.javaScriptEnabled = true
+            webView.settings.domStorageEnabled = true
+            webView.settings.allowFileAccess = false
+            webView.settings.allowContentAccess = false
+            webView.settings.mediaPlaybackRequiresUserGesture = false
+            webView.isVerticalScrollBarEnabled = false
+            webView.isHorizontalScrollBarEnabled = false
+            webView.addJavascriptInterface(MenuStateBridge(webView), "RikkaDaFeiYu")
+            webView.webViewClient = DaFeiYuWebViewClient(context)
+
+            val script = context.assets.open("dafeiyu/whale-widget.js").bufferedReader().use { it.readText() }
+            val debugScript = context.assets.open("dafeiyu/debug.js").bufferedReader().use { it.readText() }
+            webView.loadDataWithBaseURL(
+                "https://rikkahub.local/",
+                """
+                <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"></head>
+                <body style="margin:0;background:transparent;overflow:visible;width:100%;height:100%;min-height:100%"><div id="root"><textarea aria-hidden="true" style="position:absolute;left:-9999px"></textarea></div>
+                <script>$script</script><script>$debugScript</script></body></html>
+                """.trimIndent(),
+                "text/html",
+                "UTF-8",
+                null,
+            )
+
+            val popup = PopupWindow(
+                webView,
+                popupSize,
+                popupSize,
+                false,
+            ).apply {
+                setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+                isFocusable = false
+                isOutsideTouchable = true
+                isTouchable = true
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    setTouchModal(false)
+                    setIsLaidOutInScreen(true)
+                    setIsClippedToScreen(true)
                 }
-            },
-        )
+                setAttachedInDecor(true)
+                setSplitTouchEnabled(true)
+                setTouchInterceptor { _, event ->
+                    if (webView.menuOpen || webView.interactiveOpen) return@setTouchInterceptor false
+                    val x = event.x
+                    val y = event.y
+                    val inWidget = x >= popupSize - hitSize && y >= popupSize - hitSize
+                    if (inWidget) return@setTouchInterceptor false
+                    // PopupWindow covers only a small corner, but even that transparent area must not
+                    // steal RikkaHub's normal Compose input. Forward it to the Activity with screen coords.
+                    val copy = MotionEvent.obtain(event)
+                    try {
+                        copy.offsetLocation(event.rawX - event.x, event.rawY - event.y)
+                        activity.dispatchTouchEvent(copy)
+                    } finally {
+                        copy.recycle()
+                    }
+                    true
+                }
+            }
+
+            fun show() {
+                val w = decor.width
+                val h = decor.height
+                if (w <= 0 || h <= 0) {
+                    decor.post { show() }
+                    return
+                }
+                val x = (w - popupSize).coerceAtLeast(0)
+                val y = (h - popupSize).coerceAtLeast(0)
+                if (!popup.isShowing) {
+                    popup.showAtLocation(decor, Gravity.TOP or Gravity.START, x, y)
+                } else {
+                    popup.update(x, y, popupSize, popupSize)
+                }
+            }
+
+            decor.post { show() }
+            onDispose {
+                try { popup.dismiss() } catch (_: Throwable) {}
+                try { webView.stopLoading(); webView.destroy() } catch (_: Throwable) {}
+            }
+        }
     }
+    // The actual WebView lives in a PopupWindow. Keeping this Compose node empty is intentional:
+    // an AndroidView here would create a full-screen native hit target and block RikkaHub.
+    Box(modifier = Modifier)
 }
 
 private class DaFeiYuWebView(context: android.content.Context) : WebView(context) {
-    @Volatile
-    var menuOpen = false
-
-    @Volatile
-    var interactiveOpen = false
-
-    private var touchInside = false
-
-    override fun onTouchEvent(event: MotionEvent): Boolean {
-        if (event.actionMasked == MotionEvent.ACTION_DOWN) {
-            val edge = 360f * resources.displayMetrics.density
-            val inWidget = event.x >= width - edge && event.y >= height - edge
-            touchInside = inWidget || menuOpen || interactiveOpen
-            if (!touchInside) return false
-        } else if (!touchInside && !menuOpen && !interactiveOpen) {
-            return false
-        }
-        val handled = super.onTouchEvent(event)
-        if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
-            touchInside = false
-        }
-        return handled
-    }
+    @Volatile var menuOpen = false
+    @Volatile var interactiveOpen = false
 }
 
 private class MenuStateBridge(private val webView: DaFeiYuWebView) {
-    @JavascriptInterface
-    fun setMenuOpen(open: Boolean) {
-        webView.menuOpen = open
-    }
-
-    @JavascriptInterface
-    fun setInteractive(open: Boolean) {
-        webView.interactiveOpen = open
-    }
+    @JavascriptInterface fun setMenuOpen(open: Boolean) { webView.menuOpen = open }
+    @JavascriptInterface fun setInteractive(open: Boolean) { webView.interactiveOpen = open }
+    @JavascriptInterface fun setWidgetRect(left: Float, top: Float, right: Float, bottom: Float) { }
 }
 
 private class DaFeiYuWebViewClient(private val context: android.content.Context) : WebViewClient() {
