@@ -37,7 +37,7 @@ jobs:
         working-directory: web-ui
         run: pnpm install --frozen-lockfile
 
-      - name: Patch build-only dependencies and widget layout
+      - name: Patch build-only dependencies
         shell: python
         run: |
           from pathlib import Path
@@ -55,18 +55,6 @@ jobs:
           mod = Path('app/src/main/java/me/rerere/rikkahub/di/ViewModelModule.kt')
           s = mod.read_text().replace('            analytics = get(),\n', '')
           mod.write_text(s)
-
-          route = Path('app/src/main/java/me/rerere/rikkahub/RouteActivity.kt')
-          s = route.read_text()
-          # Keep the checked-in integration unchanged. The build-only host is deliberately
-          # limited to the bottom-right 320dp area so the WebView cannot cover RikkaHub.
-          old = '''                                    DaFeiYuWidget(\n                                        modifier = Modifier.fillMaxSize()\n                                    )'''
-          new = '''                                    DaFeiYuWidget(\n                                        modifier = Modifier\n                                            .align(Alignment.BottomEnd)\n                                            .then(Modifier.width(320.dp).height(320.dp))\n                                    )'''
-          if old in s:
-              s = s.replace(old, new, 1)
-          elif '.then(Modifier.width(320.dp).height(320.dp))' not in s and 'DaFeiYuWidget(' in s:
-              raise SystemExit('DaFeiYuWidget layout anchor not found')
-          route.write_text(s)
 
       - name: Build debug APK
         run: |
@@ -86,6 +74,6 @@ jobs:
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot].users.noreply.github.com'
-          git add app/src/main/java/me/rerere/rikkahub/ui/pages/chat/ChatVM.kt app/src/main/java/me/rerere/rikkahub/di/ViewModelModule.kt app/src/main/java/me/rerere/rikkahub/RouteActivity.kt
+          git add app/src/main/java/me/rerere/rikkahub/ui/pages/chat/ChatVM.kt app/src/main/java/me/rerere/rikkahub/di/ViewModelModule.kt
           git commit -m 'fix: finish 大肥鱼 performance optimization [dafeiyu-finished]' || exit 0
           git push
