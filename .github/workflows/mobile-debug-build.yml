@@ -15,20 +15,24 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      - name: Sync upstream 大肥鱼 widget unchanged
+      - name: Bundle upstream whale widget unchanged
         run: |
-          rm -rf app/src/main/assets/dsh-whale
-          mkdir -p app/src/main/assets/dsh-whale
-          cp third_party/DeepSeek-Balance-Whale-Widget/assets/* app/src/main/assets/dsh-whale/
-          cp third_party/DeepSeek-Balance-Whale-Widget/assets/whale-widget.js app/src/main/assets/dsh-whale/widget.js
-          # Keep upstream behavior/artwork; only replace the visible Chinese name.
-          sed -i 's/鲸鱼/大肥鱼/g' app/src/main/assets/dsh-whale/widget.js
-          test -f app/src/main/assets/dsh-whale/widget.js
-          test -f app/src/main/assets/dsh-whale/DSniang1.png
-          test -f app/src/main/assets/dsh-whale/DSniang02.png
-          test -f app/src/main/assets/dsh-whale/rua.gif
-          test -f app/src/main/assets/dsh-whale/Ya1.mp3
-          test -f app/src/main/assets/dsh-whale/Ya2.mp3
+          # The Android WebView host intercepts /dsh-whale/* and reads these
+          # resources from the APK root assets directory. Keep the upstream
+          # JavaScript, artwork and audio byte-for-byte unchanged.
+          cp third_party/DeepSeek-Balance-Whale-Widget/assets/* app/src/main/assets/
+          test -f app/src/main/assets/whale-widget.js
+          test -f app/src/main/assets/DSniang1.png
+          test -f app/src/main/assets/DSniang02.png
+          test -f app/src/main/assets/rua.gif
+          test -f app/src/main/assets/Ya1.mp3
+          test -f app/src/main/assets/Ya2.mp3
+          test -f app/src/main/assets/D1.mp3
+          test -f app/src/main/assets/D2.mp3
+          test -f app/src/main/assets/bubble-money1.gif
+          test -f app/src/main/assets/bubble-petpet.gif
+          test -f app/src/main/assets/minecraft-exp-orb.wav
+          test -f app/src/main/assets/task-end-a.wav
 
       - name: Set up JDK
         uses: actions/setup-java@v4
