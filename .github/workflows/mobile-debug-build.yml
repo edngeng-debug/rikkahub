@@ -21,8 +21,8 @@ jobs:
           mkdir -p app/src/main/assets/dsh-whale
           cp third_party/DeepSeek-Balance-Whale-Widget/assets/* app/src/main/assets/dsh-whale/
           cp third_party/DeepSeek-Balance-Whale-Widget/assets/whale-widget.js app/src/main/assets/dsh-whale/widget.js
-          # Only the visible character name is localized; behavior and artwork remain upstream.
-          sed -i 's/小鲸鱼/大肥鱼/g' app/src/main/assets/dsh-whale/widget.js
+          # Keep upstream behavior/artwork; only replace the visible Chinese name.
+          sed -i 's/鲸鱼/大肥鱼/g' app/src/main/assets/dsh-whale/widget.js
           test -f app/src/main/assets/dsh-whale/widget.js
           test -f app/src/main/assets/dsh-whale/DSniang1.png
           test -f app/src/main/assets/dsh-whale/DSniang02.png
