@@ -84,44 +84,47 @@ jobs:
           })();
           '''
 
-          s, n1 = re.subn(
-              r"state\.left = clamp\(drag\.origLeft \+ dx, 0, Math\.max\(0, drag\.vp\.w - drag\.w\)\);\s*"
-              r"state\.top = clamp\(drag\.origTop \+ dy, 0, Math\.max\(0, drag\.vp\.h - drag\.h\)\);",
-              "state.left = drag.origLeft + dx;\n        state.top = drag.origTop + dy;",
-              s, count=1)
-          if n1 != 1:
-              raise SystemExit('drag move pattern missing')
+          def scope_between(text, start, end):
+              a = text.find(start)
+              if a < 0: raise SystemExit(f'missing scope start: {start}')
+              b = text.find(end, a + len(start))
+              if b < 0: raise SystemExit(f'missing scope end: {end}')
+              return a, b
 
-          s, n2 = re.subn(
-              r"const left = clamp\(drag\.origLeft \+ dx, 0, Math\.max\(0, drag\.vp\.w - drag\.w\)\);\s*"
-              r"const top = clamp\(drag\.origTop \+ dy, 0, Math\.max\(0, drag\.vp\.h - drag\.h\)\);",
-              "const left = drag.origLeft + dx;\n        const top = drag.origTop + dy;",
-              s, count=1)
-          if n2 != 1:
-              raise SystemExit('drag release pattern missing')
+          # Drag move: replace the first left/top clamp inside the pointer-move handler.
+          a, b = scope_between(s, 'function onDocPointerMove', 'function onDocPointerUp')
+          body = s[a:b]
+          body, n1 = re.subn(r'state\.left\s*=\s*clamp\([^;]+\);', 'state.left = drag.origLeft + dx;', body, count=1)
+          body, n2 = re.subn(r'state\.top\s*=\s*clamp\([^;]+\);', 'state.top = drag.origTop + dy;', body, count=1)
+          if n1 != 1 or n2 != 1: raise SystemExit('drag move clamp pattern missing')
+          s = s[:a] + body + s[b:]
 
-          s, n3 = re.subn(
-              r"state\.left = left;\s*state\.top = top;\s*settle\(\);\s*saveConfig\(\);",
-              "state.left = left;\n        state.top = top;\n        state.h = null;\n        state.v = null;\n        state.hOff = left;\n        state.vOff = top;\n        express();\n        saveConfig();",
-              s, count=1)
-          if n3 != 1:
-              raise SystemExit('drag release settle pattern missing')
+          # Drag release: remove final clamp and the snap/settle call.
+          a, b = scope_between(s, 'function endDrag', 'function applyAnchorPos')
+          body = s[a:b]
+          body, n1 = re.subn(r'const left\s*=\s*clamp\([^;]+\);', 'const left = drag.origLeft + dx;', body, count=1)
+          body, n2 = re.subn(r'const top\s*=\s*clamp\([^;]+\);', 'const top = drag.origTop + dy;', body, count=1)
+          if n1 != 1 or n2 != 1: raise SystemExit('drag release clamp pattern missing')
+          body, n3 = re.subn(
+              r'state\.left\s*=\s*left;\s*state\.top\s*=\s*top;\s*settle\(\);\s*saveConfig\(\);',
+              'state.left = left;\n        state.top = top;\n        state.h = null;\n        state.v = null;\n        state.hOff = left;\n        state.vOff = top;\n        express();\n        saveConfig();',
+              body, count=1)
+          if n3 != 1: raise SystemExit('drag release settle pattern missing')
+          s = s[:a] + body + s[b:]
 
+          # Free-floating positions must survive resize without automatic re-snapping.
           s, n4 = re.subn(
-              r"window\.addEventListener\('resize', function \(\) \{\s*"
-              r"if \(state\.h === null && state\.v === null && applyAnchorPos\(\)\) return;\s*"
-              r"settle\(\);\s*\}\);",
+              r"window\.addEventListener\('resize',\s*function\s*\(\)\s*\{.*?\}\);",
               "window.addEventListener('resize', function () {\n        if (state.h === null && state.v === null) { express(); return; }\n        settle();\n      });",
-              s, count=1)
-          if n4 != 1:
-              raise SystemExit('resize pattern missing')
+              s, count=1, flags=re.S)
+          if n4 != 1: raise SystemExit('resize handler pattern missing')
 
+          # After the original config is loaded, embedded mode stops using edge anchors.
           s, n5 = re.subn(
-              r"loadConfig\(\);\s*\}\)\(\);",
+              r'loadConfig\(\);\s*\}\)\(\);',
               "loadConfig();\n      if (window.__RIKKAHUB_DAFEIYU_EMBEDDED) { state.h = null; state.v = null; express(); }\n    })();",
               s, count=1)
-          if n5 != 1:
-              raise SystemExit('init pattern missing')
+          if n5 != 1: raise SystemExit('init pattern missing')
 
           p.write_text(s + marker + patch, encoding='utf-8')
 
