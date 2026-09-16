@@ -47,36 +47,12 @@ fun DaFeiYuWidget(modifier: Modifier = Modifier) {
     val settings = LocalSettings.current
     val client: OkHttpClient = koinInject()
     val eventBus: AppEventBus = koinInject()
-    var x by remember { mutableFloatStateOf(0f) }
-    var y by remember { mutableFloatStateOf(0f) }
-    var positioned by remember { mutableStateOf(false) }
     var host by remember { mutableStateOf<DaFeiYuHostView?>(null) }
-
-    LaunchedEffect(Unit) {
-        val density = context.resources.displayMetrics.density
-        val sizePx = COMPACT_DP * density
-        if (!positioned) {
-            val dm = context.resources.displayMetrics
-            x = dm.widthPixels - sizePx
-            y = dm.heightPixels - sizePx
-            positioned = true
-        }
-    }
-
     AndroidView(
-        factory = {
-            DaFeiYuHostView(context, client, settings) { dx, dy ->
-                // Deliberately do not clamp: the widget can be dragged to any screen position.
-                x += dx
-                y += dy
-            }.also { host = it }
-        },
+        factory = { DaFeiYuHostView(context, client, settings).also { host = it } },
         update = { it.updateSettings(settings) },
-        modifier = Modifier
-            .size(COMPACT_DP.dp)
-            .offset { IntOffset(x.toInt(), y.toInt()) },
+        modifier = modifier.fillMaxSize(),
     )
-
     LaunchedEffect(eventBus) {
         eventBus.events.collectLatest { event ->
             if (event is AppEvent.ChatGenerationEnded) host?.refreshBalance()
@@ -89,16 +65,16 @@ private class DaFeiYuHostView(
     context: android.content.Context,
     private val client: OkHttpClient,
     settings: Settings,
-    private val onMove: (Float, Float) -> Unit,
 ) : FrameLayout(context) {
     private val webView = DaFeiYuWebView(context)
     @Volatile private var currentSettings = settings
     @Volatile private var cachedBalance: BalanceResult? = null
 
-    private val moveLock = Any()
-    private var pendingDx = 0f
-    private var pendingDy = 0f
-    private var moveScheduled = false
+    @Volatile private var widgetLeft = Float.POSITIVE_INFINITY
+    @Volatile private var widgetTop = Float.POSITIVE_INFINITY
+    @Volatile private var widgetRight = Float.NEGATIVE_INFINITY
+    @Volatile private var widgetBottom = Float.NEGATIVE_INFINITY
+    private var gestureInside = false
 
     init {
         setBackgroundColor(Color.TRANSPARENT)
@@ -132,43 +108,24 @@ private class DaFeiYuHostView(
         webView.loadDataWithBaseURL("https://rikkahub.local/", html, "text/html", "UTF-8", null)
     }
 
+    fun updateWidgetRect(left: Float, top: Float, right: Float, bottom: Float) {
+        widgetLeft = left; widgetTop = top; widgetRight = right; widgetBottom = bottom
+    }
     override fun dispatchTouchEvent(event: android.view.MotionEvent): Boolean {
-        val action = event.actionMasked
-        if (action == android.view.MotionEvent.ACTION_DOWN) {
-            val size = width.toFloat().coerceAtLeast(1f)
-            val whaleStart = size * 0.4055f
-            val bubbleTop = size * 0.03f
-            val bubbleBottom = size * 0.43f
-            val bubbleLeft = size * 0.06f
-            val bubbleRight = size * 0.94f
-            val inWhale = event.x >= whaleStart && event.y >= whaleStart
-            val inBubble = event.y in bubbleTop..bubbleBottom && event.x in bubbleLeft..bubbleRight
-            if (!inWhale && !inBubble) return false
-        }
-        return super.dispatchTouchEvent(event)
-    }
-
-    fun updateSettings(value: Settings) { currentSettings = value }
-
-    /** Coalesce JS drag deltas to the next UI frame instead of queueing one Runnable per touch event. */
-    fun moveWidgetBy(dx: Float, dy: Float) {
-        synchronized(moveLock) {
-            pendingDx += dx
-            pendingDy += dy
-            if (moveScheduled) return
-            moveScheduled = true
-        }
-        postOnAnimation {
-            val delta = synchronized(moveLock) {
-                val value = pendingDx to pendingDy
-                pendingDx = 0f
-                pendingDy = 0f
-                moveScheduled = false
-                value
+        val x = event.x; val y = event.y
+        when (event.actionMasked) {
+            android.view.MotionEvent.ACTION_DOWN -> {
+                if (!(x >= widgetLeft && x <= widgetRight && y >= widgetTop && y <= widgetBottom)) { gestureInside = false; return false }
+                gestureInside = true
             }
-            if (delta.first != 0f || delta.second != 0f) onMove(delta.first, delta.second)
+            android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> if (!gestureInside) return false
+            else -> if (!gestureInside) return false
         }
+        val handled = super.dispatchTouchEvent(event)
+        if (event.actionMasked == android.view.MotionEvent.ACTION_UP || event.actionMasked == android.view.MotionEvent.ACTION_CANCEL) gestureInside = false
+        return handled || gestureInside
     }
+    fun updateSettings(value: Settings) { currentSettings = value }
 
     fun refreshBalance() {
         post {
@@ -292,10 +249,10 @@ private data class BalanceResult(val json: String, val at: Long = System.current
 }
 
 private class DaFeiYuBridge(private val host: DaFeiYuHostView) {
-    @JavascriptInterface fun moveWidgetBy(dx: Float, dy: Float) = host.moveWidgetBy(dx, dy)
+    @JavascriptInterface fun moveWidgetBy(@Suppress("UNUSED_PARAMETER") dx: Float, @Suppress("UNUSED_PARAMETER") dy: Float) = Unit
     @JavascriptInterface fun setPanelOpen(@Suppress("UNUSED_PARAMETER") value: Boolean) = Unit
     @JavascriptInterface fun setInteractive(@Suppress("UNUSED_PARAMETER") value: Boolean) = Unit
-    @JavascriptInterface fun setWidgetRect(@Suppress("UNUSED_PARAMETER") left: Float, @Suppress("UNUSED_PARAMETER") top: Float, @Suppress("UNUSED_PARAMETER") right: Float, @Suppress("UNUSED_PARAMETER") bottom: Float, @Suppress("UNUSED_PARAMETER") viewportWidth: Float, @Suppress("UNUSED_PARAMETER") viewportHeight: Float) = Unit
+    @JavascriptInterface fun setWidgetRect(left: Float, top: Float, right: Float, bottom: Float, @Suppress("UNUSED_PARAMETER") viewportWidth: Float, @Suppress("UNUSED_PARAMETER") viewportHeight: Float) = host.updateWidgetRect(left, top, right, bottom)
     @JavascriptInterface fun saveSizeConfig(@Suppress("UNUSED_PARAMETER") json: String) = Unit
     @JavascriptInterface fun saveUsageSettings(json: String) = host.saveUsageSettings(json)
     @JavascriptInterface fun consumePanelAction(): String = host.consumePanelAction()

@@ -1097,9 +1097,7 @@ scrollGapInput.title = '避让滚动条的像素宽度，填 0 表示贴边'
 scrollGapInput.addEventListener('input', function () { setScrollGapPx(scrollGapInput.value) })
 scrollGapInput.addEventListener('change', function () { setScrollGapPx(scrollGapInput.value) })
 var row1 = menuRow()
-row1.appendChild(menuLabel('大小'))
-row1.appendChild(scaleInput)
-row1.appendChild(scaleNumber)
+row1.style.display = window.__RIKKAHUB_DAFEIYU_EMBEDDED ? 'none' : ''
 var row2 = menuRow()
 row2.appendChild(menuLabel('音效'))
 row2.appendChild(audioGroupBtn)
@@ -11496,6 +11494,7 @@ function express() {
   root.style.left = state.left + 'px'
   root.style.top = state.top + 'px'
   root.classList.toggle('dshwv-left', !!state.flip)
+  try { if (window.RikkaDaFeiYu && RikkaDaFeiYu.setWidgetRect) { var rr = root.getBoundingClientRect(); RikkaDaFeiYu.setWidgetRect(rr.left, rr.top, rr.right, rr.bottom, window.innerWidth || 0, window.innerHeight || 0) } } catch (err) {}
 }
 function settle() {
   var vp = viewport()
@@ -13598,7 +13597,7 @@ function onDocPointerDown(e) {
   var rect = root.getBoundingClientRect()
   drag = { active: true, startX: e.clientX, startY: e.clientY, origLeft: rect.left, origTop: rect.top, w: rect.width, h: rect.height, moved: false, vp: vp }
   root.classList.add('dshwv-dragging')
-  pressDown()
+  if (!window.__RIKKAHUB_DAFEIYU_EMBEDDED) pressDown()
   setWidgetCursor('grabbing')
   document.addEventListener('pointermove', onDocPointerMove, true)
   document.addEventListener('pointerup', onDocPointerUp, true)
@@ -13781,12 +13780,12 @@ function endDrag(e, clickAllowed) {
   document.removeEventListener('pointermove', onDocPointerMove, true)
   document.removeEventListener('pointerup', onDocPointerUp, true)
   document.removeEventListener('pointercancel', onDocPointerCancel, true)
-  pressUp()
+  if (!window.__RIKKAHUB_DAFEIYU_EMBEDDED) pressUp()
   root.classList.remove('dshwv-dragging')
   setWidgetCursor(isWhaleHit(e) ? 'grab' : '')
   if (clickAllowed && !drag.moved) {
-    // 长按刚唤出菜单:这次抬手不再当作点击(避免顺带弹出余额泡)
     if (longPressRecent()) return
+    if (window.__RIKKAHUB_DAFEIYU_EMBEDDED) { refresh(true); return }
     whaleClick()
     refresh(true)
     return
@@ -13888,7 +13887,7 @@ loadBubbleCfg()
 fetch(SIZE_URL, { cache: 'no-store' })
   .then(function (r) { return r.json() })
   .then(function (d) {
-    if (d && typeof d.scale === 'number' && d.scale >= MIN_SCALE - 0.1 && d.scale <= MAX_SCALE + 0.1) {
+    if (!window.__RIKKAHUB_DAFEIYU_EMBEDDED && d && typeof d.scale === 'number' && d.scale >= MIN_SCALE - 0.1 && d.scale <= MAX_SCALE + 0.1) {
       state.scale = d.scale
       root.style.setProperty('--dshw-scale', String(d.scale))
       scaleInput.value = String(d.scale)
