@@ -17,10 +17,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import java.io.ByteArrayInputStream
+import kotlin.math.max
+import kotlin.math.roundToInt
 
 /**
- * 大肥鱼独立浮层：关闭菜单时只占据右下角挂件区域，因此不会盖住 RikkaHub 的聊天页；
- * 打开二级 UI 后才扩展为全屏 PopupWindow，保证完整菜单/编辑器等可以正常点击。
+ * 大肥鱼独立浮层：普通状态只占据挂件本身的区域，不挡住 RikkaHub；
+ * 打开二级 UI 或拖拽时临时扩展到全屏，结束后再回到挂件的实际位置。
  */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
@@ -40,10 +42,12 @@ private class DaFeiYuOverlay(
     private val context: android.content.Context,
     private val hostView: View,
 ) {
-    private val density = context.resources.displayMetrics.density
-    private val compactSize = (260f * density).toInt()
+    private val compactSize = (260f * context.resources.displayMetrics.density).roundToInt()
     private val webView = DaFeiYuWebView(context)
     private val popup = PopupWindow(webView, compactSize, compactSize, false)
+    private var lastRootRect = floatArrayOf(Float.NaN, Float.NaN, Float.NaN, Float.NaN)
+    private var lastViewport = floatArrayOf(Float.NaN, Float.NaN)
+    private var interactive = false
 
     init {
         webView.setBackgroundColor(Color.TRANSPARENT)
@@ -81,16 +85,55 @@ private class DaFeiYuOverlay(
     }
 
     fun show() {
-        if (!popup.isShowing) {
-            popup.showAtLocation(hostView, Gravity.BOTTOM or Gravity.END, 0, 0)
+        hostView.post {
+            if (popup.isShowing) return@post
+            val x = max(0, hostView.width - compactSize)
+            val y = max(0, hostView.height - compactSize)
+            popup.showAtLocation(hostView, Gravity.TOP or Gravity.START, x, y)
+        }
+    }
+
+    fun setWidgetRect(left: Float, top: Float, right: Float, bottom: Float, viewportWidth: Float, viewportHeight: Float) {
+        hostView.post {
+            lastRootRect = floatArrayOf(left, top, right, bottom)
+            lastViewport = floatArrayOf(viewportWidth, viewportHeight)
+            if (!popup.isShowing || interactive || viewportWidth <= 1f || viewportHeight <= 1f) return@post
+
+            val sx = hostView.width.toFloat() / viewportWidth
+            val sy = hostView.height.toFloat() / viewportHeight
+            val rootWidth = ((right - left) * sx).coerceAtLeast(1f)
+            val rootHeight = ((bottom - top) * sy).coerceAtLeast(1f)
+            val x = (left * sx + rootWidth - compactSize).roundToInt()
+            val y = (top * sy + rootHeight - compactSize).roundToInt()
+            popup.update(x, y, compactSize, compactSize)
         }
     }
 
     fun setInteractive(open: Boolean) {
         hostView.post {
+            interactive = open
             if (!popup.isShowing) return@post
-            val size = if (open) -1 else compactSize
-            popup.update(0, 0, size, size)
+            if (open) {
+                popup.update(0, 0, -1, -1)
+            } else {
+                val viewportWidth = lastViewport[0]
+                val viewportHeight = lastViewport[1]
+                if (viewportWidth > 1f && viewportHeight > 1f) {
+                    val sx = hostView.width.toFloat() / viewportWidth
+                    val sy = hostView.height.toFloat() / viewportHeight
+                    val left = lastRootRect[0]
+                    val top = lastRootRect[1]
+                    val right = lastRootRect[2]
+                    val bottom = lastRootRect[3]
+                    val rootWidth = ((right - left) * sx).coerceAtLeast(1f)
+                    val rootHeight = ((bottom - top) * sy).coerceAtLeast(1f)
+                    val x = (left * sx + rootWidth - compactSize).roundToInt()
+                    val y = (top * sy + rootHeight - compactSize).roundToInt()
+                    popup.update(x, y, compactSize, compactSize)
+                } else {
+                    popup.update(0, 0, compactSize, compactSize)
+                }
+            }
         }
     }
 
@@ -110,7 +153,8 @@ private class DaFeiYuBridge(private val overlay: DaFeiYuOverlay) {
     fun setInteractive(value: Boolean) = overlay.setInteractive(value)
 
     @JavascriptInterface
-    fun setWidgetRect(left: Float, top: Float, right: Float, bottom: Float, viewportWidth: Float, viewportHeight: Float) = Unit
+    fun setWidgetRect(left: Float, top: Float, right: Float, bottom: Float, viewportWidth: Float, viewportHeight: Float) =
+        overlay.setWidgetRect(left, top, right, bottom, viewportWidth, viewportHeight)
 
     @JavascriptInterface
     fun saveSizeConfig(json: String) = Unit
