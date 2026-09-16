@@ -15,7 +15,7 @@ var dshwEnabled = false
 try {
   var dshwRoot = document.getElementById('root')
   // 初始已有 composer → 主界面
-  if (dshwIsChatRoot(dshwRoot)) {
+  if (window.__RIKKAHUB_DAFEIYU_EMBEDDED || dshwIsChatRoot(dshwRoot)) {
     dshwEnabled = true
   } else {
     // 尚未渲染：轮询等待（主界面异步挂载），超过 5s 视为非主界面（市场/设置等）放弃

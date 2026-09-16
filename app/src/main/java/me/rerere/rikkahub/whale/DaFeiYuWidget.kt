@@ -137,6 +137,22 @@ private class DaFeiYuHostView(
         webView.loadDataWithBaseURL("https://rikkahub.local/", html, "text/html", "UTF-8", null)
     }
 
+    override fun dispatchTouchEvent(event: android.view.MotionEvent): Boolean {
+        val action = event.actionMasked
+        if (action == android.view.MotionEvent.ACTION_DOWN) {
+            val size = width.toFloat().coerceAtLeast(1f)
+            val whaleStart = size * 0.4055f
+            val bubbleTop = size * 0.03f
+            val bubbleBottom = size * 0.43f
+            val bubbleLeft = size * 0.06f
+            val bubbleRight = size * 0.94f
+            val inWhale = event.x >= whaleStart && event.y >= whaleStart
+            val inBubble = event.y in bubbleTop..bubbleBottom && event.x in bubbleLeft..bubbleRight
+            if (!inWhale && !inBubble) return false
+        }
+        return super.dispatchTouchEvent(event)
+    }
+
     fun updateSettings(value: Settings) { currentSettings = value }
     fun moveWidgetBy(dx: Float, dy: Float) { post { onMove(dx, dy) } }
     fun refreshBalance() {
