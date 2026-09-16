@@ -15,7 +15,7 @@ data class DaFeiYuSettings(
     val turnCostCloseMs: Long = 5000L,
     val scrollGapOn: Boolean = false,
     val scrollGapPx: Int = 17,
-    val menuBtnHide: Boolean = true,
+    val menuBtnHide: Boolean = false,
 )
 
 object DaFeiYuSettingsStore {
@@ -30,7 +30,7 @@ object DaFeiYuSettingsStore {
             peakMode = p.getString("peakMode", "default") ?: "default", bubbleOn = p.getBoolean("bubbleOn", true),
             turnCostOn = p.getBoolean("turnCostOn", true), turnCostCloseMs = p.getLong("turnCostCloseMs", 5000L),
             scrollGapOn = p.getBoolean("scrollGapOn", false), scrollGapPx = p.getInt("scrollGapPx", 17),
-            menuBtnHide = true,
+            menuBtnHide = false,
         )
     }
 
@@ -63,7 +63,7 @@ object DaFeiYuSettingsStore {
             put("scale", 1.0); put("sound", s.sound); put("vol", s.vol); put("soundSet", s.soundSet)
             put("usageMode", s.usageMode); put("peakMode", s.peakMode); put("bubbleOn", s.bubbleOn)
             put("turnCostOn", s.turnCostOn); put("turnCostCloseMs", s.turnCostCloseMs)
-            put("menuBtnHide", true)
+            put("menuBtnHide", false)
         }.toString()
     }
 
