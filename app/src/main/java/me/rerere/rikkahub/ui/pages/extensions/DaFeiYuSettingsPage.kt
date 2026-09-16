@@ -24,7 +24,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import me.rerere.rikkahub.ui.components.nav.BackButton
-import me.rerere.rikkahub.ui.context.LocalNavController
 import me.rerere.rikkahub.ui.theme.CustomColors
 import me.rerere.rikkahub.whale.DaFeiYuSettings
 import me.rerere.rikkahub.whale.DaFeiYuSettingsStore
@@ -34,7 +33,6 @@ import java.util.Locale
 @Composable
 fun DaFeiYuSettingsPage() {
     val context = LocalContext.current
-    val navController = LocalNavController.current
     var settings by remember { mutableStateOf(DaFeiYuSettingsStore.load(context)) }
     val usage = remember { mutableStateOf(readUsage(DaFeiYuSettingsStore.usageJson(context))) }
 
@@ -46,11 +44,6 @@ fun DaFeiYuSettingsPage() {
     fun saveUsage(patch: JSONObject) {
         DaFeiYuSettingsStore.saveUsagePatch(context, patch.toString())
         usage.value = readUsage(DaFeiYuSettingsStore.usageJson(context))
-    }
-
-    fun requestPanel(name: String) {
-        DaFeiYuSettingsStore.requestPanel(context, name)
-        navController.popBackStack()
     }
 
     Scaffold(
@@ -120,12 +113,16 @@ fun DaFeiYuSettingsPage() {
             }
 
             item { Text("高级功能", style = MaterialTheme.typography.titleMedium) }
-            item { EditorButton("自定义泡泡", "编辑点击序列、文字、图片、随机内容和排版") { requestPanel("bubble") } }
-            item { EditorButton("角色与资源", "管理角色图片、泡泡图库和音频片段") { requestPanel("role") } }
-            item { EditorButton("吸附与镜像", "配置四边吸附和左侧镜像") { requestPanel("snap") } }
-            item { EditorButton("每轮消耗提示", "编辑每轮提示内容、自动关闭和任务结束音效") { requestPanel("turn") } }
-            item { EditorButton("音效管理", "打开原有音效资源编辑器") { requestPanel("audio") } }
-            item { Text("点击高级编辑器后会自动返回聊天页并打开对应面板；大肥鱼本体菜单已关闭。大小设置不再提供。", style = MaterialTheme.typography.bodySmall) }
+            item {
+                InfoCard("拖动与位置", "现在由 RikkaHub 原生 Compose 承载，鱼本体不再使用 PopupWindow / 全屏 WebView；键盘弹出时也不会把输入法盖住。")
+            }
+            item {
+                InfoCard("大小设置", "已按要求彻底移除。大肥鱼使用固定尺寸，避免之前的尺寸配置继续影响定位。")
+            }
+            item {
+                InfoCard("角色、泡泡、吸附与音效高级编辑", "旧版网页二级菜单已经停止从这里调用。之前这些按钮会跳回上一级，本版先不再打开失效的旧菜单；后续会直接做成 RikkaHub 原生设置面板。")
+            }
+            item { Text("当前版本重点保证：聊天输入、拖动、点击气泡、余额读取和基础设置不互相干扰。", style = MaterialTheme.typography.bodySmall) }
 
             item {
                 Button(onClick = {
@@ -181,11 +178,9 @@ private fun SettingChoice(title: String, value: String, choices: List<Pair<Strin
 }
 
 @Composable
-private fun EditorButton(title: String, summary: String, onClick: () -> Unit) {
-    Button(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.fillMaxWidth()) {
-            Text(title)
-            Text(summary, style = MaterialTheme.typography.bodySmall)
-        }
+private fun InfoCard(title: String, text: String) {
+    Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+        Text(title, style = MaterialTheme.typography.titleSmall)
+        Text(text, style = MaterialTheme.typography.bodySmall)
     }
 }
