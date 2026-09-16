@@ -8,6 +8,7 @@ on:
       - 'app/src/main/java/me/rerere/rikkahub/ui/pages/extensions/DaFeiYuSettingsPage.kt'
       - 'app/src/main/java/me/rerere/rikkahub/ui/pages/extensions/ExtensionsPage.kt'
       - 'app/src/main/assets/dafeiyu/debug.js'
+      - 'app/src/main/assets/dafeiyu/whale-widget.js'
       - '.github/workflows/finish-dafeiyu.yml'
 
 permissions:
@@ -76,7 +77,19 @@ jobs:
 
           widget = Path('app/src/main/java/me/rerere/rikkahub/whale/DaFeiYuWidget.kt')
           s = widget.read_text().replace('put("name", model.name)', 'put("name", model.displayName)')
+          # AndroidView occupies a 250dp square, so the whole square was intercepting
+          # chat touches. Only the visible whale/bubble regions should claim ACTION_DOWN.
+          marker = '    fun updateSettings(value: Settings) { currentSettings = value }\n'
+          touch = '''    override fun dispatchTouchEvent(event: android.view.MotionEvent): Boolean {\n        val action = event.actionMasked\n        if (action == android.view.MotionEvent.ACTION_DOWN) {\n            val size = width.toFloat().coerceAtLeast(1f)\n            val whaleStart = size * 0.4055f\n            val bubbleTop = size * 0.03f\n            val bubbleBottom = size * 0.43f\n            val bubbleLeft = size * 0.06f\n            val bubbleRight = size * 0.94f\n            val inWhale = event.x >= whaleStart && event.y >= whaleStart\n            val inBubble = event.y in bubbleTop..bubbleBottom && event.x in bubbleLeft..bubbleRight\n            if (!inWhale && !inBubble) return false\n        }\n        return super.dispatchTouchEvent(event)\n    }\n\n'''
+          if marker in s and 'override fun dispatchTouchEvent(event: android.view.MotionEvent)' not in s:
+              s = s.replace(marker, touch + marker)
           widget.write_text(s)
+
+          whale = Path('app/src/main/assets/dafeiyu/whale-widget.js')
+          s = whale.read_text()
+          # The embedded WebView intentionally has an empty root, so the original DSH\n          # composer detection must be bypassed or the widget never initializes.
+          s = s.replace('if (dshwIsChatRoot(dshwRoot)) {', 'if (window.__RIKKAHUB_DAFEIYU_EMBEDDED || dshwIsChatRoot(dshwRoot)) {', 1)
+          whale.write_text(s)
 
       - name: Build debug APK
         run: |
@@ -96,6 +109,6 @@ jobs:
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot].users.noreply.github.com'
-          git add app/src/main/java/me/rerere/rikkahub/ui/pages/chat/ChatVM.kt app/src/main/java/me/rerere/rikkahub/di/ViewModelModule.kt app/src/main/java/me/rerere/rikkahub/RouteActivity.kt app/src/main/java/me/rerere/rikkahub/whale/DaFeiYuWidget.kt
-          git commit -m 'fix: finish 大肥鱼 settings integration [dafeiyu-finished]' || exit 0
+          git add app/src/main/java/me/rerere/rikkahub/ui/pages/chat/ChatVM.kt app/src/main/java/me/rerere/rikkahub/di/ViewModelModule.kt app/src/main/java/me/rerere/rikkahub/RouteActivity.kt app/src/main/java/me/rerere/rikkahub/whale/DaFeiYuWidget.kt app/src/main/assets/dafeiyu/whale-widget.js
+          git commit -m 'fix: finish 大肥鱼 embedded interaction integration [dafeiyu-finished]' || exit 0
           git push
