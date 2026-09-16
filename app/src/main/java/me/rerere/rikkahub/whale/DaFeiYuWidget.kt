@@ -20,16 +20,11 @@ import java.io.ByteArrayInputStream
 import kotlin.math.max
 import kotlin.math.roundToInt
 
-/**
- * 大肥鱼独立浮层：普通状态只占据挂件本身的区域，不挡住 RikkaHub；
- * 打开二级 UI 或拖拽时临时扩展到全屏，结束后再回到挂件的实际位置。
- */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun DaFeiYuWidget(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val hostView = LocalView.current
-
     DisposableEffect(context, hostView) {
         val overlay = DaFeiYuOverlay(context, hostView)
         overlay.show()
@@ -47,6 +42,8 @@ private class DaFeiYuOverlay(
     private val popup = PopupWindow(webView, compactSize, compactSize, false)
     private var lastRootRect = floatArrayOf(Float.NaN, Float.NaN, Float.NaN, Float.NaN)
     private var lastViewport = floatArrayOf(Float.NaN, Float.NaN)
+    private var popupX = 0
+    private var popupY = 0
     private var interactive = false
 
     init {
@@ -87,9 +84,19 @@ private class DaFeiYuOverlay(
     fun show() {
         hostView.post {
             if (popup.isShowing) return@post
-            val x = max(0, hostView.width - compactSize)
-            val y = max(0, hostView.height - compactSize)
-            popup.showAtLocation(hostView, Gravity.TOP or Gravity.START, x, y)
+            popupX = max(0, hostView.width - compactSize)
+            popupY = max(0, hostView.height - compactSize)
+            popup.showAtLocation(hostView, Gravity.TOP or Gravity.START, popupX, popupY)
+        }
+    }
+
+    private fun cssScale(): Pair<Float, Float> {
+        val vw = lastViewport[0]
+        val vh = lastViewport[1]
+        return if (vw > 1f && vh > 1f) {
+            hostView.width.toFloat() / vw to hostView.height.toFloat() / vh
+        } else {
+            1f to 1f
         }
     }
 
@@ -99,42 +106,54 @@ private class DaFeiYuOverlay(
             lastViewport = floatArrayOf(viewportWidth, viewportHeight)
             if (!popup.isShowing || interactive || viewportWidth <= 1f || viewportHeight <= 1f) return@post
 
-            val sx = hostView.width.toFloat() / viewportWidth
-            val sy = hostView.height.toFloat() / viewportHeight
+            val (sx, sy) = cssScale()
             val rootWidth = ((right - left) * sx).coerceAtLeast(1f)
             val rootHeight = ((bottom - top) * sy).coerceAtLeast(1f)
-            val x = (left * sx + rootWidth - compactSize).roundToInt()
-            val y = (top * sy + rootHeight - compactSize).roundToInt()
-            popup.update(x, y, compactSize, compactSize)
+            popupX = (left * sx + rootWidth - compactSize).roundToInt().coerceAtLeast(0)
+            popupY = (top * sy + rootHeight - compactSize).roundToInt().coerceAtLeast(0)
+            popup.update(popupX, popupY, compactSize, compactSize)
         }
     }
 
     fun setInteractive(open: Boolean) {
         hostView.post {
-            interactive = open
-            if (!popup.isShowing) return@post
+            if (!popup.isShowing || open == interactive) return@post
             if (open) {
+                val (sx, sy) = cssScale()
+                val screenRootLeft = popupX + lastRootRect[0] * sx
+                val screenRootTop = popupY + lastRootRect[1] * sy
+                interactive = true
                 popup.update(0, 0, -1, -1)
+                val fullScaleX = hostView.width.toFloat() / lastViewport[0].coerceAtLeast(1f)
+                val fullScaleY = hostView.height.toFloat() / lastViewport[1].coerceAtLeast(1f)
+                val cssLeft = screenRootLeft / fullScaleX
+                val cssTop = screenRootTop / fullScaleY
+                webView.postDelayed({
+                    webView.evaluateJavascript("window.__dshwPinRoot&&window.__dshwPinRoot($cssLeft,$cssTop)", null)
+                }, 20)
             } else {
-                val viewportWidth = lastViewport[0]
-                val viewportHeight = lastViewport[1]
-                if (viewportWidth > 1f && viewportHeight > 1f) {
-                    val sx = hostView.width.toFloat() / viewportWidth
-                    val sy = hostView.height.toFloat() / viewportHeight
-                    val left = lastRootRect[0]
-                    val top = lastRootRect[1]
-                    val right = lastRootRect[2]
-                    val bottom = lastRootRect[3]
-                    val rootWidth = ((right - left) * sx).coerceAtLeast(1f)
-                    val rootHeight = ((bottom - top) * sy).coerceAtLeast(1f)
-                    val x = (left * sx + rootWidth - compactSize).roundToInt()
-                    val y = (top * sy + rootHeight - compactSize).roundToInt()
-                    popup.update(x, y, compactSize, compactSize)
-                } else {
-                    popup.update(0, 0, compactSize, compactSize)
-                }
+                val (sx, sy) = cssScale()
+                val rootLeftPx = lastRootRect[0] * sx
+                val rootTopPx = lastRootRect[1] * sy
+                val rootWidthPx = ((lastRootRect[2] - lastRootRect[0]) * sx).coerceAtLeast(1f)
+                val rootHeightPx = ((lastRootRect[3] - lastRootRect[1]) * sy).coerceAtLeast(1f)
+                popupX = (rootLeftPx + rootWidthPx - compactSize).roundToInt().coerceAtLeast(0)
+                popupY = (rootTopPx + rootHeightPx - compactSize).roundToInt().coerceAtLeast(0)
+                interactive = false
+                popup.update(popupX, popupY, compactSize, compactSize)
+                val localScaleX = hostView.width.toFloat() / lastViewport[0].coerceAtLeast(1f)
+                val localScaleY = hostView.height.toFloat() / lastViewport[1].coerceAtLeast(1f)
+                val localLeft = (lastRootRect[0] - popupX / localScaleX).coerceAtLeast(0f)
+                val localTop = (lastRootRect[1] - popupY / localScaleY).coerceAtLeast(0f)
+                webView.postDelayed({
+                    webView.evaluateJavascript("window.__dshwPinRoot&&window.__dshwPinRoot($localLeft,$localTop)", null)
+                }, 20)
             }
         }
+    }
+
+    fun requestPanel(panel: String) {
+        DaFeiYuSettingsStore.requestPanel(context, panel)
     }
 
     fun saveUsageSettings(json: String) {
@@ -161,6 +180,9 @@ private class DaFeiYuBridge(private val overlay: DaFeiYuOverlay) {
 
     @JavascriptInterface
     fun saveUsageSettings(json: String) = overlay.saveUsageSettings(json)
+
+    @JavascriptInterface
+    fun consumePanelAction(): String = DaFeiYuSettingsStore.consumePanel(overlay.context)
 }
 
 private class DaFeiYuWebView(context: android.content.Context) : WebView(context)
