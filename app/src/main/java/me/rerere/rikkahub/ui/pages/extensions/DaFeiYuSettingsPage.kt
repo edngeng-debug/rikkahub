@@ -46,6 +46,10 @@ fun DaFeiYuSettingsPage() {
         usage.value = readUsage(DaFeiYuSettingsStore.usageJson(context))
     }
 
+    fun saveAdvanced(key: String, value: Any) {
+        saveUsage(JSONObject().put("advanced", copyJson(usage.value.advanced).put(key, value)))
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -83,6 +87,20 @@ fun DaFeiYuSettingsPage() {
                     v.toLongOrNull()?.coerceIn(0L, 15L)?.let { save(settings.copy(turnCostCloseMs = it * 1000L)) }
                 }
             }
+            item {
+                OutlinedTextField(
+                    value = usage.value.advanced.optString("turnCostText", "本回合扣费 {amount} 元"),
+                    onValueChange = { saveAdvanced("turnCostText", it) },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("每轮消耗提示文案") },
+                    supportingText = { Text("支持 {amount}、{tokens} 占位符") },
+                    singleLine = true,
+                )
+            }
+            item { SettingSwitch("任务结束音效", "任务完成时播放选定的结束音效", usage.value.advanced.optBoolean("taskEndOn", false)) { saveAdvanced("taskEndOn", it) } }
+            item {
+                SettingChoice("任务结束音效", usage.value.advanced.optString("taskEndSound", "exp_orb"), listOf("exp_orb" to "Minecraft·经验球", "duck" to "小黄鸭")) { saveAdvanced("taskEndSound", it) }
+            }
 
             item { Text("提醒", style = MaterialTheme.typography.titleMedium) }
             item { SettingSwitch("余额预警", "余额低于阈值时显示提醒", usage.value.alertOn) { saveUsage(JSONObject().put("alert", copyJson(usage.value.alert).put("on", it))) } }
@@ -112,22 +130,68 @@ fun DaFeiYuSettingsPage() {
                 }
             }
 
+            item { Text("吸附与镜像", style = MaterialTheme.typography.titleMedium) }
+            item { SettingSwitch("启用边缘吸附", "拖动结束后自动吸附到最近边缘", usage.value.advanced.optBoolean("snapOn", true)) { saveAdvanced("snapOn", it) } }
+            item {
+                NumberField("吸附距离（px）", usage.value.advanced.optInt("snapPx", 18).toString(), "0～100", KeyboardType.Number) { v ->
+                    v.toIntOrNull()?.coerceIn(0, 100)?.let { saveAdvanced("snapPx", it) }
+                }
+            }
+            item { SettingSwitch("左侧吸附时镜像", "贴左边时水平翻转大肥鱼和文字", usage.value.advanced.optBoolean("mirror", true)) { saveAdvanced("mirror", it) } }
+
+            item { Text("泡泡与角色", style = MaterialTheme.typography.titleMedium) }
+            item { SettingSwitch("自定义泡泡", "启用自定义提示文本作为泡泡内容", usage.value.advanced.optBoolean("customBubbleOn", false)) { saveAdvanced("customBubbleOn", it) } }
+            item {
+                OutlinedTextField(
+                    value = usage.value.advanced.optString("customBubbleText", ""),
+                    onValueChange = { saveAdvanced("customBubbleText", it) },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("自定义泡泡文本") },
+                    supportingText = { Text("留空时继续使用默认泡泡序列") },
+                    minLines = 2,
+                )
+            }
+            item {
+                OutlinedTextField(
+                    value = usage.value.advanced.optString("roleName", "大肥鱼"),
+                    onValueChange = { saveAdvanced("roleName", it) },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("角色名称") },
+                    supportingText = { Text("用于设置页和提示文案；图片资源仍使用内置资源") },
+                    singleLine = true,
+                )
+            }
+            item { SettingChoice("角色资源", usage.value.advanced.optString("roleAsset", "default"), listOf("default" to "默认角色", "duck" to "小黄鸭")) { saveAdvanced("roleAsset", it) } }
+
             item { Text("高级功能", style = MaterialTheme.typography.titleMedium) }
             item {
-                InfoCard("拖动与位置", "现在由 RikkaHub 原生 Compose 承载，鱼本体不再使用 PopupWindow / 全屏 WebView；键盘弹出时也不会把输入法盖住。")
+                InfoCard("拖动与位置", "大肥鱼现在直接嵌入 RikkaHub 聊天页，不使用 PopupWindow；空白区域会把触摸事件交还给聊天界面，键盘区域不会被整块 250dp 容器挡住。")
             }
             item {
-                InfoCard("大小设置", "已按要求彻底移除。大肥鱼使用固定尺寸，避免之前的尺寸配置继续影响定位。")
+                InfoCard("大小设置", "已按要求彻底移除。大肥鱼保持固定尺寸，不再提供大小滑块或尺寸持久化。")
             }
             item {
-                InfoCard("角色、泡泡、吸附与音效高级编辑", "旧版网页二级菜单已经停止从这里调用。之前这些按钮会跳回上一级，本版先不再打开失效的旧菜单；后续会直接做成 RikkaHub 原生设置面板。")
+                InfoCard("角色与资源管理", "可设置角色名称和当前内置角色资源。自定义文件导入入口保留为后续资源管理面板，当前不会再跳回失效的旧网页二级菜单。")
             }
-            item { Text("当前版本重点保证：聊天输入、拖动、点击气泡、余额读取和基础设置不互相干扰。", style = MaterialTheme.typography.bodySmall) }
+            item {
+                InfoCard("自定义泡泡", "现在可以直接编辑自定义泡泡文本并控制开关，不需要进入原网页三级菜单。")
+            }
+            item {
+                InfoCard("吸附与镜像", "吸附开关、吸附距离和左侧镜像已经迁移到本页。")
+            }
+            item {
+                InfoCard("音效管理", "音效开关、音量、套装和任务结束音效均已迁移到本页。")
+            }
+            item {
+                InfoCard("每轮消耗", "显示开关、自动关闭时间和提示文案已经迁移到本页。")
+            }
+
+            item { Text("当前版本重点保证：聊天输入、拖动、点击气泡、余额读取和所有设置入口不再依赖失效的网页三级菜单。", style = MaterialTheme.typography.bodySmall) }
 
             item {
                 Button(onClick = {
                     DaFeiYuSettingsStore.reset(context)
-                    DaFeiYuSettingsStore.saveUsagePatch(context, "{\"taskEnd\":{\"on\":false,\"sel\":\"frag:exp_orb\"},\"alert\":{\"on\":true,\"below\":5,\"autoClose\":true,\"ttlSec\":6},\"budget\":{\"on\":true,\"amount\":10,\"autoClose\":true,\"ttlSec\":6}}")
+                    DaFeiYuSettingsStore.saveUsagePatch(context, "{\"taskEnd\":{\"on\":false,\"sel\":\"frag:exp_orb\"},\"alert\":{\"on\":true,\"below\":5,\"autoClose\":true,\"ttlSec\":6},\"budget\":{\"on\":true,\"amount\":10,\"autoClose\":true,\"ttlSec\":6},\"advanced\":{\"snapOn\":true,\"snapPx\":18,\"mirror\":true,\"customBubbleOn\":false,\"customBubbleText\":\"\",\"roleName\":\"大肥鱼\",\"roleAsset\":\"default\",\"taskEndOn\":false,\"taskEndSound\":\"exp_orb\",\"turnCostText\":\"本回合扣费 {amount} 元\"}}")
                     settings = DaFeiYuSettingsStore.load(context)
                     usage.value = readUsage(DaFeiYuSettingsStore.usageJson(context))
                 }, modifier = Modifier.fillMaxWidth()) { Text("恢复默认设置") }
@@ -147,14 +211,37 @@ private fun NumberField(label: String, value: String, supporting: String, keyboa
     OutlinedTextField(value = text, onValueChange = { text = it; onValueChange(it) }, modifier = Modifier.fillMaxWidth(), label = { Text(label) }, supportingText = { Text(supporting) }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = keyboardType))
 }
 
-private data class UsageUi(val alert: JSONObject, val budget: JSONObject, val alertOn: Boolean, val alertBelow: Float, val budgetOn: Boolean, val budgetAmount: Float, val autoClose: Boolean, val ttlSec: Int)
+private data class UsageUi(
+    val alert: JSONObject,
+    val budget: JSONObject,
+    val advanced: JSONObject,
+    val alertOn: Boolean,
+    val alertBelow: Float,
+    val budgetOn: Boolean,
+    val budgetAmount: Float,
+    val autoClose: Boolean,
+    val ttlSec: Int,
+)
+
 private fun copyJson(value: JSONObject): JSONObject = try { JSONObject(value.toString()) } catch (_: Exception) { JSONObject() }
+
 private fun readUsage(raw: String): UsageUi {
     val root = try { JSONObject(raw) } catch (_: Exception) { JSONObject() }
     val s = root.optJSONObject("settings") ?: JSONObject()
     val alert = s.optJSONObject("alert") ?: JSONObject()
     val budget = s.optJSONObject("budget") ?: JSONObject()
-    return UsageUi(alert, budget, alert.optBoolean("on", true), alert.optDouble("below", 5.0).toFloat(), budget.optBoolean("on", true), budget.optDouble("amount", 10.0).toFloat(), alert.optBoolean("autoClose", budget.optBoolean("autoClose", true)), alert.optInt("ttlSec", budget.optInt("ttlSec", 6)))
+    val advanced = s.optJSONObject("advanced") ?: JSONObject()
+    return UsageUi(
+        alert = alert,
+        budget = budget,
+        advanced = advanced,
+        alertOn = alert.optBoolean("on", true),
+        alertBelow = alert.optDouble("below", 5.0).toFloat(),
+        budgetOn = budget.optBoolean("on", true),
+        budgetAmount = budget.optDouble("amount", 10.0).toFloat(),
+        autoClose = alert.optBoolean("autoClose", budget.optBoolean("autoClose", true)),
+        ttlSec = alert.optInt("ttlSec", budget.optInt("ttlSec", 6)),
+    )
 }
 
 @Composable
