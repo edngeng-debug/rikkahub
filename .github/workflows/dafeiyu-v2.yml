@@ -92,18 +92,25 @@ jobs:
           grep -q '__RIKKAHUB_DAFEIYU_EMBEDDED' app/src/main/assets/dafeiyu/whale-widget.js
           grep -q 'dshwv-bubble,.dshwv-bubble-open' app/src/main/assets/dafeiyu/whale-widget.js
 
-      - name: Build ARM64 debug APK
+      - name: Build debug APK
         shell: bash
         run: |
           set -euo pipefail
           chmod +x ./gradlew
-          ./gradlew :app:assembleArm64Debug --stacktrace
+          ./gradlew :app:assembleDebug --stacktrace
 
-      - name: Upload ARM64 APK
+      - name: Locate APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          find app/build/outputs/apk -type f -name '*.apk' -print
+          test -n "$(find app/build/outputs/apk -type f -name '*.apk' -print -quit)"
+
+      - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: rikkahub-dafeiyu-complete-arm64
-          path: app/build/outputs/apk/debug/*arm64-v8a-debug.apk
+          name: rikkahub-dafeiyu-complete-debug
+          path: app/build/outputs/apk/**/*.apk
           if-no-files-found: error
           retention-days: 90
 
