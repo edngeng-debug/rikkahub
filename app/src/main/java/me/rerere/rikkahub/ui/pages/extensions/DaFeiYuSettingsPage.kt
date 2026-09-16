@@ -77,25 +77,25 @@ fun DaFeiYuSettingsPage() {
             }
 
             item { Text("提醒", style = androidx.compose.material3.MaterialTheme.typography.titleMedium) }
-            item { SettingSwitch("余额预警", "余额低于阈值时显示提醒", usage.value.alertOn) { saveUsage(JSONObject().put("alert", JSONObject(usage.value.alert).put("on", it))) } }
+            item { SettingSwitch("余额预警", "余额低于阈值时显示提醒", usage.value.alertOn) { saveUsage(JSONObject().put("alert", copyJson(usage.value.alert).put("on", it))) } }
             item {
                 Column(Modifier.fillMaxWidth()) {
                     Text("余额预警阈值：¥${"%.2f".format(usage.value.alertBelow)}")
-                    Slider(value = usage.value.alertBelow, onValueChange = { saveUsage(JSONObject().put("alert", JSONObject(usage.value.alert).put("below", it.toDouble()))) }, valueRange = 0f..100f)
+                    Slider(value = usage.value.alertBelow, onValueChange = { saveUsage(JSONObject().put("alert", copyJson(usage.value.alert).put("below", it.toDouble()))) }, valueRange = 0f..100f)
                 }
             }
-            item { SettingSwitch("今日预算", "今日已用达到预算金额时提醒", usage.value.budgetOn) { saveUsage(JSONObject().put("budget", JSONObject(usage.value.budget).put("on", it))) } }
+            item { SettingSwitch("今日预算", "今日已用达到预算金额时提醒", usage.value.budgetOn) { saveUsage(JSONObject().put("budget", copyJson(usage.value.budget).put("on", it))) } }
             item {
                 Column(Modifier.fillMaxWidth()) {
                     Text("今日预算：¥${"%.2f".format(usage.value.budgetAmount)}")
-                    Slider(value = usage.value.budgetAmount, onValueChange = { saveUsage(JSONObject().put("budget", JSONObject(usage.value.budget).put("amount", it.toDouble()))) }, valueRange = 0f..200f)
+                    Slider(value = usage.value.budgetAmount, onValueChange = { saveUsage(JSONObject().put("budget", copyJson(usage.value.budget).put("amount", it.toDouble()))) }, valueRange = 0f..200f)
                 }
             }
-            item { SettingSwitch("提醒自动关闭", "余额预警和今日预算提示自动收起", usage.value.autoClose) { saveUsage(JSONObject().put("alert", JSONObject(usage.value.alert).put("autoClose", it)).put("budget", JSONObject(usage.value.budget).put("autoClose", it))) } }
+            item { SettingSwitch("提醒自动关闭", "余额预警和今日预算提示自动收起", usage.value.autoClose) { saveUsage(JSONObject().put("alert", copyJson(usage.value.alert).put("autoClose", it)).put("budget", copyJson(usage.value.budget).put("autoClose", it))) } }
             item {
                 Column(Modifier.fillMaxWidth()) {
                     Text("提醒显示时间：${usage.value.ttlSec} 秒")
-                    Slider(value = usage.value.ttlSec.toFloat(), onValueChange = { saveUsage(JSONObject().put("alert", JSONObject(usage.value.alert).put("ttlSec", it.toInt())).put("budget", JSONObject(usage.value.budget).put("ttlSec", it.toInt()))) }, valueRange = 1f..30f)
+                    Slider(value = usage.value.ttlSec.toFloat(), onValueChange = { saveUsage(JSONObject().put("alert", copyJson(usage.value.alert).put("ttlSec", it.toInt())).put("budget", copyJson(usage.value.budget).put("ttlSec", it.toInt()))) }, valueRange = 1f..30f)
                 }
             }
 
@@ -140,6 +140,8 @@ private data class UsageUi(
     val autoClose: Boolean,
     val ttlSec: Int,
 )
+
+private fun copyJson(value: JSONObject): JSONObject = try { JSONObject(value.toString()) } catch (_: Exception) { JSONObject() }
 
 private fun readUsage(raw: String): UsageUi {
     val root = try { JSONObject(raw) } catch (_: Exception) { JSONObject() }
