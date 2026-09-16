@@ -37,7 +37,6 @@
         if(!root.contains(e.target))return;
         if(visible(document.querySelector(PANEL_SELECTOR)))return;
         drag={x:e.clientX,y:e.clientY,lastX:e.clientX,lastY:e.clientY,moved:false,pointerId:e.pointerId};
-        /* 关键：阻止原版 pressDown/Q 弹和拖拽状态机，点击与拖动由这里统一处理。 */
         e.stopImmediatePropagation();
       }catch(err){drag=null}
     },true);
@@ -53,9 +52,7 @@
         drag.moved=true;
         var dx=e.clientX-drag.lastX,dy=e.clientY-drag.lastY;
         drag.lastX=e.clientX;drag.lastY=e.clientY;
-        if((dx||dy)&&window.RikkaDaFeiYu){
-          window.RikkaDaFeiYu.moveWidgetBy(dx,dy);
-        }
+        if((dx||dy)&&window.RikkaDaFeiYu)window.RikkaDaFeiYu.moveWidgetBy(dx,dy);
         e.preventDefault();
         e.stopImmediatePropagation();
       }catch(err){}
@@ -67,7 +64,6 @@
       drag=null;
       try{
         e.stopImmediatePropagation();
-        /* 没有移动就是普通点击：交给原版 click 逻辑，显示台词/气泡，但不会先触发抽动。 */
         if(wasMoved)e.preventDefault();
       }catch(err){}
     },true);
@@ -87,7 +83,8 @@
         '.dshwv-root{--dshw-base:250px!important;width:250px!important;height:250px!important;left:0!important;top:0!important;right:auto!important;bottom:auto!important;transition:none!important;pointer-events:auto!important}',
         '.dshwv-body{transform:none!important;animation:none!important;transition:none!important;pointer-events:auto!important;touch-action:none!important}',
         '.dshwv-menu,.dshwv-menu-btn,.dshwv-menu-btn-visible{display:none!important}',
-        '.dshwv-bubmask,.dshwv-audiomask,.dshwv-confirmmask,.dshwv-cropmask,.dshwv-snapmask,.dshwv-resmask,.dshwv-usage-mask{position:fixed!important;z-index:100001!important;box-sizing:border-box!important}',
+        '.dshwv-bubmask,.dshwv-audiomask,.dshwv-confirmmask,.dshwv-cropmask,.dshwv-snapmask,.dshwv-resmask,.dshwv-usage-mask{position:absolute!important;z-index:100001!important;box-sizing:border-box!important}',
+        '.dshwv-rolelist,.dshwv-audiolist,.dshwv-custmenu,.dshwv-qedit,.dshwv-usagepanel,.dshwv-hintbox{position:absolute!important;z-index:100002!important;box-sizing:border-box!important}',
         '.dshwv-img,.dshwv-gif{user-select:none!important;-webkit-user-drag:none!important}'
       ].join('');
       document.head.appendChild(st);
