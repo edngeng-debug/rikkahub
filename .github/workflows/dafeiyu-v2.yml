@@ -62,15 +62,15 @@ jobs:
             if test -f "$SRC/$f"; then cp -f "$SRC/$f" "app/src/main/assets/dafeiyu/$f"; fi
           done
 
-      - name: Patch whale for RikkaHub embedded mode
+      - name: Patch whale visual behavior for embedded mode
         shell: python
         run: |
-          import re
           from pathlib import Path
           p = Path('app/src/main/assets/dafeiyu/whale-widget.js')
           s = p.read_text(encoding='utf-8')
-
           marker = "\n/* RikkaHub embedded interaction patch */\n"
+          if marker in s:
+              s = s.split(marker, 1)[0]
           patch = r'''
           (function(){
             if (!window.__RIKKAHUB_DAFEIYU_EMBEDDED) return;
@@ -83,57 +83,13 @@ jobs:
             document.head.appendChild(style);
           })();
           '''
-
-          def scope_between(text, start, end):
-              a = text.find(start)
-              if a < 0: raise SystemExit(f'missing scope start: {start}')
-              b = text.find(end, a + len(start))
-              if b < 0: raise SystemExit(f'missing scope end: {end}')
-              return a, b
-
-          # Drag move: replace the first left/top clamp inside the pointer-move handler.
-          a, b = scope_between(s, 'function onDocPointerMove', 'function onDocPointerUp')
-          body = s[a:b]
-          body, n1 = re.subn(r'state\.left\s*=\s*clamp\([^;]+\);', 'state.left = drag.origLeft + dx;', body, count=1)
-          body, n2 = re.subn(r'state\.top\s*=\s*clamp\([^;]+\);', 'state.top = drag.origTop + dy;', body, count=1)
-          if n1 != 1 or n2 != 1: raise SystemExit('drag move clamp pattern missing')
-          s = s[:a] + body + s[b:]
-
-          # Drag release: remove final clamp and the snap/settle call.
-          a, b = scope_between(s, 'function endDrag', 'function applyAnchorPos')
-          body = s[a:b]
-          body, n1 = re.subn(r'const left\s*=\s*clamp\([^;]+\);', 'const left = drag.origLeft + dx;', body, count=1)
-          body, n2 = re.subn(r'const top\s*=\s*clamp\([^;]+\);', 'const top = drag.origTop + dy;', body, count=1)
-          if n1 != 1 or n2 != 1: raise SystemExit('drag release clamp pattern missing')
-          body, n3 = re.subn(
-              r'state\.left\s*=\s*left;\s*state\.top\s*=\s*top;\s*settle\(\);\s*saveConfig\(\);',
-              'state.left = left;\n        state.top = top;\n        state.h = null;\n        state.v = null;\n        state.hOff = left;\n        state.vOff = top;\n        express();\n        saveConfig();',
-              body, count=1)
-          if n3 != 1: raise SystemExit('drag release settle pattern missing')
-          s = s[:a] + body + s[b:]
-
-          # Free-floating positions must survive resize without automatic re-snapping.
-          s, n4 = re.subn(
-              r"window\.addEventListener\('resize',\s*function\s*\(\)\s*\{.*?\}\);",
-              "window.addEventListener('resize', function () {\n        if (state.h === null && state.v === null) { express(); return; }\n        settle();\n      });",
-              s, count=1, flags=re.S)
-          if n4 != 1: raise SystemExit('resize handler pattern missing')
-
-          # After the original config is loaded, embedded mode stops using edge anchors.
-          s, n5 = re.subn(
-              r'loadConfig\(\);\s*\}\)\(\);',
-              "loadConfig();\n      if (window.__RIKKAHUB_DAFEIYU_EMBEDDED) { state.h = null; state.v = null; express(); }\n    })();",
-              s, count=1)
-          if n5 != 1: raise SystemExit('init pattern missing')
-
           p.write_text(s + marker + patch, encoding='utf-8')
 
-      - name: Verify whale patch
+      - name: Verify embedded visual patch
         shell: bash
         run: |
           set -euo pipefail
           grep -q '__RIKKAHUB_DAFEIYU_EMBEDDED' app/src/main/assets/dafeiyu/whale-widget.js
-          grep -q 'state.left = drag.origLeft + dx' app/src/main/assets/dafeiyu/whale-widget.js
           grep -q 'dshwv-bubble,.dshwv-bubble-open' app/src/main/assets/dafeiyu/whale-widget.js
 
       - name: Build ARM64 debug APK
