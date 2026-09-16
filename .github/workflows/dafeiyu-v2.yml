@@ -65,11 +65,11 @@ jobs:
       - name: Patch whale for RikkaHub embedded mode
         shell: python
         run: |
+          import re
           from pathlib import Path
           p = Path('app/src/main/assets/dafeiyu/whale-widget.js')
           s = p.read_text(encoding='utf-8')
 
-          # 1/2: remove the press squash and all click bubbles in embedded RikkaHub mode.
           marker = "\n/* RikkaHub embedded interaction patch */\n"
           patch = r'''
           (function(){
@@ -84,44 +84,48 @@ jobs:
           })();
           '''
 
-          # Remove original bounds from drag movement. These exact expressions are part of the
-          # upstream 0.3.1 implementation; fail loudly if upstream changes them.
-          old1 = "state.left = clamp(drag.origLeft + dx, 0, Math.max(0, drag.vp.w - drag.w));\n        state.top = clamp(drag.origTop + dy, 0, Math.max(0, drag.vp.h - drag.h));"
-          new1 = "state.left = drag.origLeft + dx;\n        state.top = drag.origTop + dy;"
-          if old1 not in s:
+          s, n1 = re.subn(
+              r"state\.left = clamp\(drag\.origLeft \+ dx, 0, Math\.max\(0, drag\.vp\.w - drag\.w\)\);\s*"
+              r"state\.top = clamp\(drag\.origTop \+ dy, 0, Math\.max\(0, drag\.vp\.h - drag\.h\)\);",
+              "state.left = drag.origLeft + dx;\n        state.top = drag.origTop + dy;",
+              s, count=1)
+          if n1 != 1:
               raise SystemExit('drag move pattern missing')
-          s = s.replace(old1, new1, 1)
 
-          old2 = "const left = clamp(drag.origLeft + dx, 0, Math.max(0, drag.vp.w - drag.w));\n        const top = clamp(drag.origTop + dy, 0, Math.max(0, drag.vp.h - drag.h));"
-          new2 = "const left = drag.origLeft + dx;\n        const top = drag.origTop + dy;"
-          if old2 not in s:
+          s, n2 = re.subn(
+              r"const left = clamp\(drag\.origLeft \+ dx, 0, Math\.max\(0, drag\.vp\.w - drag\.w\)\);\s*"
+              r"const top = clamp\(drag\.origTop \+ dy, 0, Math\.max\(0, drag\.vp\.h - drag\.h\)\);",
+              "const left = drag.origLeft + dx;\n        const top = drag.origTop + dy;",
+              s, count=1)
+          if n2 != 1:
               raise SystemExit('drag release pattern missing')
-          s = s.replace(old2, new2, 1)
 
-          # Do not re-anchor/clamp after a drag. Keep the released coordinates exactly.
-          old3 = "state.left = left;\n        state.top = top;\n        settle();\n        saveConfig();"
-          new3 = "state.left = left;\n        state.top = top;\n        state.h = null;\n        state.v = null;\n        state.hOff = left;\n        state.vOff = top;\n        express();\n        saveConfig();"
-          if old3 not in s:
+          s, n3 = re.subn(
+              r"state\.left = left;\s*state\.top = top;\s*settle\(\);\s*saveConfig\(\);",
+              "state.left = left;\n        state.top = top;\n        state.h = null;\n        state.v = null;\n        state.hOff = left;\n        state.vOff = top;\n        express();\n        saveConfig();",
+              s, count=1)
+          if n3 != 1:
               raise SystemExit('drag release settle pattern missing')
-          s = s.replace(old3, new3, 1)
 
-          # Once a position is free-floating, resize must not snap it back into bounds.
-          old4 = "window.addEventListener('resize', function () {\n        if (state.h === null && state.v === null && applyAnchorPos()) return;\n        settle();\n      });"
-          new4 = "window.addEventListener('resize', function () {\n        if (state.h === null && state.v === null) { express(); return; }\n        settle();\n      });"
-          if old4 not in s:
+          s, n4 = re.subn(
+              r"window\.addEventListener\('resize', function \(\) \{\s*"
+              r"if \(state\.h === null && state\.v === null && applyAnchorPos\(\)\) return;\s*"
+              r"settle\(\);\s*\}\);",
+              "window.addEventListener('resize', function () {\n        if (state.h === null && state.v === null) { express(); return; }\n        settle();\n      });",
+              s, count=1)
+          if n4 != 1:
               raise SystemExit('resize pattern missing')
-          s = s.replace(old4, new4, 1)
 
-          # Force the embedded mode to remain free-floating after the original config loader.
-          old5 = "loadConfig();\n    })();"
-          new5 = "loadConfig();\n      if (window.__RIKKAHUB_DAFEIYU_EMBEDDED) { state.h = null; state.v = null; express(); }\n    })();"
-          if old5 not in s:
+          s, n5 = re.subn(
+              r"loadConfig\(\);\s*\}\)\(\);",
+              "loadConfig();\n      if (window.__RIKKAHUB_DAFEIYU_EMBEDDED) { state.h = null; state.v = null; express(); }\n    })();",
+              s, count=1)
+          if n5 != 1:
               raise SystemExit('init pattern missing')
-          s = s.replace(old5, new5, 1)
 
           p.write_text(s + marker + patch, encoding='utf-8')
 
-      - name: Verify no size UI in embedded mode
+      - name: Verify whale patch
         shell: bash
         run: |
           set -euo pipefail
