@@ -65,15 +65,20 @@ jobs:
           new_composable = '''@SuppressLint("SetJavaScriptEnabled")\n@Composable\nfun DaFeiYuWidget(modifier: Modifier = Modifier) {\n    val context = LocalContext.current\n    val settings = LocalSettings.current\n    val client: OkHttpClient = koinInject()\n    val eventBus: AppEventBus = koinInject()\n    var host by remember { mutableStateOf<DaFeiYuHostView?>(null) }\n    AndroidView(\n        factory = { DaFeiYuHostView(context, client, settings).also { host = it } },\n        update = { it.updateSettings(settings) },\n        modifier = modifier.fillMaxSize(),\n    )\n    LaunchedEffect(eventBus) {\n        eventBus.events.collectLatest { event ->\n            if (event is AppEvent.ChatGenerationEnded) host?.refreshBalance()\n        }\n    }\n}\n'''
           s = s[:start] + new_composable + s[host_end:]
           s = s.replace('''    settings: Settings,\n    private val onMove: (Float, Float) -> Unit,\n) : FrameLayout(context) {''', '''    settings: Settings,\n) : FrameLayout(context) {''', 1)
-          old_fields = '''    private var widgetX = 0f\n    private var widgetY = 0f\n    private var widgetReady = false\n    private val widgetSizePx get() = 250f * resources.displayMetrics.density\n'''
-          new_fields = '''    @Volatile private var widgetLeft = Float.POSITIVE_INFINITY\n    @Volatile private var widgetTop = Float.POSITIVE_INFINITY\n    @Volatile private var widgetRight = Float.NEGATIVE_INFINITY\n    @Volatile private var widgetBottom = Float.NEGATIVE_INFINITY\n    private var gestureInside = false\n'''
-          if old_fields not in s: raise SystemExit('missing widget position fields')
-          s = s.replace(old_fields, new_fields, 1)
-          start_touch = s.index('    override fun onAttachedToWindow()')
+          # Replace whichever movement implementation is currently in the checked-out source.
+          for old_fields in [
+              '''    private val moveLock = Any()\n    private var pendingDx = 0f\n    private var pendingDy = 0f\n    private var moveScheduled = false\n''',
+              '''    private var widgetX = 0f\n    private var widgetY = 0f\n    private var widgetReady = false\n    private val widgetSizePx get() = 250f * resources.displayMetrics.density\n'''
+          ]:
+              if old_fields in s:
+                  s = s.replace(old_fields, '''    @Volatile private var widgetLeft = Float.POSITIVE_INFINITY\n    @Volatile private var widgetTop = Float.POSITIVE_INFINITY\n    @Volatile private var widgetRight = Float.NEGATIVE_INFINITY\n    @Volatile private var widgetBottom = Float.NEGATIVE_INFINITY\n    private var gestureInside = false\n''', 1)
+                  break
+          else:
+              raise SystemExit('missing whale movement state')
+          start_touch = s.index('    override fun dispatchTouchEvent')
           end_touch = s.index('\n    fun refreshBalance()', start_touch)
           new_touch = '''    fun updateWidgetRect(left: Float, top: Float, right: Float, bottom: Float) {\n        widgetLeft = left; widgetTop = top; widgetRight = right; widgetBottom = bottom\n    }\n    override fun dispatchTouchEvent(event: android.view.MotionEvent): Boolean {\n        val x = event.x; val y = event.y\n        when (event.actionMasked) {\n            android.view.MotionEvent.ACTION_DOWN -> {\n                if (!(x >= widgetLeft && x <= widgetRight && y >= widgetTop && y <= widgetBottom)) { gestureInside = false; return false }\n                gestureInside = true\n            }\n            android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> if (!gestureInside) return false\n            else -> if (!gestureInside) return false\n        }\n        val handled = super.dispatchTouchEvent(event)\n        if (event.actionMasked == android.view.MotionEvent.ACTION_UP || event.actionMasked == android.view.MotionEvent.ACTION_CANCEL) gestureInside = false\n        return handled || gestureInside\n    }\n    fun updateSettings(value: Settings) { currentSettings = value }\n'''
           s = s[:start_touch] + new_touch + s[end_touch:]
-          s = s.replace('import org.koin.compose.koinInject\n', 'import org.koin.compose.koinInject\n', 1)
           s = s.replace('''    @JavascriptInterface fun moveWidgetBy(dx: Float, dy: Float) = host.moveWidgetBy(dx, dy)''', '''    @JavascriptInterface fun moveWidgetBy(@Suppress("UNUSED_PARAMETER") dx: Float, @Suppress("UNUSED_PARAMETER") dy: Float) = Unit''')
           s = s.replace('''    @JavascriptInterface fun setWidgetRect(@Suppress("UNUSED_PARAMETER") left: Float, @Suppress("UNUSED_PARAMETER") top: Float, @Suppress("UNUSED_PARAMETER") right: Float, @Suppress("UNUSED_PARAMETER") bottom: Float, @Suppress("UNUSED_PARAMETER") viewportWidth: Float, @Suppress("UNUSED_PARAMETER") viewportHeight: Float) = Unit''', '''    @JavascriptInterface fun setWidgetRect(left: Float, top: Float, right: Float, bottom: Float, @Suppress("UNUSED_PARAMETER") viewportWidth: Float, @Suppress("UNUSED_PARAMETER") viewportHeight: Float) = host.updateWidgetRect(left, top, right, bottom)''')
           widget.write_text(s)
