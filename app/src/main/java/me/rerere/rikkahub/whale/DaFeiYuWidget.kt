@@ -9,7 +9,6 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
@@ -37,7 +36,6 @@ import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
 import org.koin.compose.koinInject
-import kotlin.math.roundToInt
 
 private const val COMPACT_DP = 250
 private const val BALANCE_CACHE_MS = 30_000L
@@ -49,44 +47,36 @@ fun DaFeiYuWidget(modifier: Modifier = Modifier) {
     val settings = LocalSettings.current
     val client: OkHttpClient = koinInject()
     val eventBus: AppEventBus = koinInject()
-    // Do not use NaN for Compose layout coordinates. offset { } converts them
-    // with roundToInt(), which throws IllegalArgumentException for NaN.
     var x by remember { mutableFloatStateOf(0f) }
     var y by remember { mutableFloatStateOf(0f) }
     var positioned by remember { mutableStateOf(false) }
     var host by remember { mutableStateOf<DaFeiYuHostView?>(null) }
 
-    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
-        val density = androidx.compose.ui.platform.LocalDensity.current
-        val sizePx = with(density) { COMPACT_DP.dp.toPx() }
-        val maxX = (maxWidth.value * density.density - sizePx).coerceAtLeast(0f)
-        val maxY = (maxHeight.value * density.density - sizePx).coerceAtLeast(0f)
-        LaunchedEffect(maxWidth, maxHeight) {
-            if (!positioned) {
-                x = maxX
-                y = maxY
-                positioned = true
-            } else {
-                x = x.coerceIn(0f, maxX)
-                y = y.coerceIn(0f, maxY)
-            }
+    LaunchedEffect(Unit) {
+        val density = context.resources.displayMetrics.density
+        val sizePx = COMPACT_DP * density
+        if (!positioned) {
+            val dm = context.resources.displayMetrics
+            x = dm.widthPixels - sizePx
+            y = dm.heightPixels - sizePx
+            positioned = true
         }
-        AndroidView(
-            factory = {
-                DaFeiYuHostView(context, client, settings) { dx, dy ->
-                    x = (x + dx).coerceIn(0f, maxX)
-                    y = (y + dy).coerceIn(0f, maxY)
-                }.also { host = it }
-            },
-            update = { it.updateSettings(settings) },
-            modifier = Modifier.size(COMPACT_DP.dp).offset {
-                IntOffset(
-                    x.coerceIn(0f, maxX).roundToInt(),
-                    y.coerceIn(0f, maxY).roundToInt(),
-                )
-            },
-        )
     }
+
+    AndroidView(
+        factory = {
+            DaFeiYuHostView(context, client, settings) { dx, dy ->
+                // Deliberately do not clamp: the widget can be dragged to any screen position.
+                x += dx
+                y += dy
+            }.also { host = it }
+        },
+        update = { it.updateSettings(settings) },
+        modifier = Modifier
+            .size(COMPACT_DP.dp)
+            .offset { IntOffset(x.toInt(), y.toInt()) },
+    )
+
     LaunchedEffect(eventBus) {
         eventBus.events.collectLatest { event ->
             if (event is AppEvent.ChatGenerationEnded) host?.refreshBalance()
@@ -104,6 +94,11 @@ private class DaFeiYuHostView(
     private val webView = DaFeiYuWebView(context)
     @Volatile private var currentSettings = settings
     @Volatile private var cachedBalance: BalanceResult? = null
+
+    private val moveLock = Any()
+    private var pendingDx = 0f
+    private var pendingDy = 0f
+    private var moveScheduled = false
 
     init {
         setBackgroundColor(Color.TRANSPARENT)
@@ -154,7 +149,27 @@ private class DaFeiYuHostView(
     }
 
     fun updateSettings(value: Settings) { currentSettings = value }
-    fun moveWidgetBy(dx: Float, dy: Float) { post { onMove(dx, dy) } }
+
+    /** Coalesce JS drag deltas to the next UI frame instead of queueing one Runnable per touch event. */
+    fun moveWidgetBy(dx: Float, dy: Float) {
+        synchronized(moveLock) {
+            pendingDx += dx
+            pendingDy += dy
+            if (moveScheduled) return
+            moveScheduled = true
+        }
+        postOnAnimation {
+            val delta = synchronized(moveLock) {
+                val value = pendingDx to pendingDy
+                pendingDx = 0f
+                pendingDy = 0f
+                moveScheduled = false
+                value
+            }
+            if (delta.first != 0f || delta.second != 0f) onMove(delta.first, delta.second)
+        }
+    }
+
     fun refreshBalance() {
         post {
             cachedBalance = null
