@@ -11,7 +11,6 @@ import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
@@ -22,6 +21,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -39,33 +39,33 @@ import org.json.JSONObject
 import org.koin.compose.koinInject
 import kotlin.math.roundToInt
 
-private const val COMPACT_DP = 260
+private const val COMPACT_DP = 250
 private const val BALANCE_CACHE_MS = 30_000L
 
+/**
+ * 大肥鱼直接作为 RikkaHub 聊天页面的一层 Compose 内容嵌入。
+ * 不使用 PopupWindow、不使用全屏 WebView、不使用 imePadding，避免遮挡输入法和聊天输入区。
+ */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun DaFeiYuWidget(modifier: Modifier = Modifier) {
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
     val settings = LocalSettings.current
     val client: OkHttpClient = koinInject()
     val eventBus: AppEventBus = koinInject()
-    var panelOpen by remember { mutableStateOf(false) }
     var x by remember { mutableFloatStateOf(Float.NaN) }
     var y by remember { mutableFloatStateOf(Float.NaN) }
     var host by remember { mutableStateOf<DaFeiYuHostView?>(null) }
 
-    BoxWithConstraints(modifier = modifier.imePadding()) {
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val density = androidx.compose.ui.platform.LocalDensity.current
-        val compactPx = with(density) { COMPACT_DP.dp.toPx() }
-        val maxXPx = with(density) { maxWidth.toPx() } - compactPx
-        val maxYPx = with(density) { maxHeight.toPx() } - compactPx
+        val sizePx = with(density) { COMPACT_DP.dp.toPx() }
+        val maxX = (maxWidth.value * density.density - sizePx).coerceAtLeast(0f)
+        val maxY = (maxHeight.value * density.density - sizePx).coerceAtLeast(0f)
 
-        LaunchedEffect(maxWidth, maxHeight, panelOpen) {
-            if (panelOpen) return@LaunchedEffect
-            if (x.isNaN()) x = maxXPx.coerceAtLeast(0f)
-            else x = x.coerceIn(0f, maxXPx.coerceAtLeast(0f))
-            if (y.isNaN()) y = maxYPx.coerceAtLeast(0f)
-            else y = y.coerceIn(0f, maxYPx.coerceAtLeast(0f))
+        LaunchedEffect(maxWidth, maxHeight) {
+            x = if (x.isNaN()) maxX else x.coerceIn(0f, maxX)
+            y = if (y.isNaN()) maxY else y.coerceIn(0f, maxY)
         }
 
         AndroidView(
@@ -75,35 +75,21 @@ fun DaFeiYuWidget(modifier: Modifier = Modifier) {
                     client = client,
                     settings = settings,
                     onMove = { dx, dy ->
-                        if (!panelOpen) {
-                            x = (if (x.isNaN()) maxXPx.coerceAtLeast(0f) else x + dx)
-                                .coerceIn(0f, maxXPx.coerceAtLeast(0f))
-                            y = (if (y.isNaN()) maxYPx.coerceAtLeast(0f) else y + dy)
-                                .coerceIn(0f, maxYPx.coerceAtLeast(0f))
-                        }
+                        x = (if (x.isNaN()) maxX else x + dx).coerceIn(0f, maxX)
+                        y = (if (y.isNaN()) maxY else y + dy).coerceIn(0f, maxY)
                     },
-                    onPanelOpen = { open -> panelOpen = open },
                 ).also { host = it }
             },
-            update = {
-                it.updateSettings(settings)
-                if (!panelOpen) it.layoutCompact()
-            },
-            modifier = if (panelOpen) {
-                Modifier.fillMaxSize()
-            } else {
-                Modifier
-                    .size(COMPACT_DP.dp)
-                    .offset { IntOffset(x.coerceAtLeast(0f).roundToInt(), y.coerceAtLeast(0f).roundToInt()) }
-            },
+            update = { it.updateSettings(settings) },
+            modifier = Modifier
+                .size(COMPACT_DP.dp)
+                .offset { IntOffset(x.coerceAtLeast(0f).roundToInt(), y.coerceAtLeast(0f).roundToInt()) },
         )
     }
 
     LaunchedEffect(eventBus) {
         eventBus.events.collectLatest { event ->
-            if (event is AppEvent.ChatGenerationEnded && event.contentPreview != null) {
-                host?.refreshBalance()
-            }
+            if (event is AppEvent.ChatGenerationEnded) host?.refreshBalance()
         }
     }
 }
@@ -114,15 +100,10 @@ private class DaFeiYuHostView(
     private val client: OkHttpClient,
     settings: Settings,
     private val onMove: (Float, Float) -> Unit,
-    private val onPanelOpen: (Boolean) -> Unit,
 ) : FrameLayout(context) {
     private val webView = DaFeiYuWebView(context)
-    @Volatile
-    private var currentSettings: Settings = settings
-    @Volatile
-    private var panelMode = false
-    @Volatile
-    private var cachedBalance: BalanceResult? = null
+    @Volatile private var currentSettings = settings
+    @Volatile private var cachedBalance: BalanceResult? = null
 
     init {
         setBackgroundColor(Color.TRANSPARENT)
@@ -144,41 +125,22 @@ private class DaFeiYuHostView(
         webView.webViewClient = DaFeiYuWebViewClient(this)
         addView(webView)
 
-        val script = context.assets.open("dafeiyu/whale-widget.js").bufferedReader().use { it.readText() }
-        val debugScript = context.assets.open("dafeiyu/debug.js").bufferedReader().use { it.readText() }
+        val whale = context.assets.open("dafeiyu/whale-widget.js").bufferedReader().use { it.readText() }
+        val debug = context.assets.open("dafeiyu/debug.js").bufferedReader().use { it.readText() }
         val html = """
             <!doctype html><html><head>
             <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-            </head><body style="margin:0;background:transparent;overflow:visible;width:100%;height:100%">
-            <div id="root"></div>
+            <style>html,body,#root{margin:0;width:100%;height:100%;overflow:visible;background:transparent}</style>
+            </head><body><div id="root"></div>
             <script>window.__RIKKAHUB_DAFEIYU_EMBEDDED=true;window.__RIKKAHUB_DAFEIYU_SETTINGS=${DaFeiYuSettingsStore.json(context)};</script>
-            <script>$script</script><script>$debugScript</script></body></html>
+            <script>$whale</script><script>$debug</script></body></html>
         """.trimIndent()
         webView.loadDataWithBaseURL("https://rikkahub.local/", html, "text/html", "UTF-8", null)
     }
 
-    fun updateSettings(settings: Settings) {
-        currentSettings = settings
-    }
+    fun updateSettings(value: Settings) { currentSettings = value }
 
-    fun layoutCompact() {
-        if (panelMode) return
-        post { requestLayout() }
-    }
-
-    fun setPanelOpen(open: Boolean) {
-        if (panelMode == open) return
-        panelMode = open
-        post {
-            webView.layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
-            onPanelOpen(open)
-        }
-    }
-
-    fun moveWidgetBy(dx: Float, dy: Float) {
-        if (panelMode) return
-        post { onMove(dx, dy) }
-    }
+    fun moveWidgetBy(dx: Float, dy: Float) { post { onMove(dx, dy) } }
 
     fun refreshBalance() {
         post {
@@ -188,38 +150,35 @@ private class DaFeiYuHostView(
     }
 
     fun consumePanelAction(): String = DaFeiYuSettingsStore.consumePanel(context)
-
     fun saveUsageSettings(json: String) = DaFeiYuSettingsStore.saveUsagePatch(context, json)
 
     fun balanceJson(): String {
         val now = System.currentTimeMillis()
-        val cached = cachedBalance
-        if (cached != null && now - cached.at < BALANCE_CACHE_MS) return cached.json
-
-        val result = fetchCurrentBalance()
-        cachedBalance = result.copy(at = now)
+        cachedBalance?.let { if (now - it.at < BALANCE_CACHE_MS) return it.json }
+        val result = fetchCurrentBalance().copy(at = now)
+        cachedBalance = result
         return result.json
     }
 
     fun apiModelsJson(): String {
-        val modelAndProvider = currentModelForWhale()
+        val pair = currentModelForWhale()
             ?: return JSONObject().put("ok", true).put("models", JSONArray()).put("templates", JSONArray()).toString()
-        val model = modelAndProvider.first
-        val provider = modelAndProvider.second
-        val balance = balanceJson()
-        val b = runCatching { JSONObject(balance) }.getOrDefault(JSONObject())
+        val model = pair.first
+        val provider = pair.second
+        val balance = JSONObject(balanceJson())
         val item = JSONObject().apply {
             put("id", "rikkahub:${model.id}")
             put("name", model.name)
             put("provider", provider.name)
             put("builtin", false)
-            put("currency", b.optString("currency", "CNY"))
-            if (b.optBoolean("ok", false)) {
-                put("balance", b.optDouble("totalBalance", Double.NaN))
+            put("currency", balance.optString("currency", "CNY"))
+            if (balance.optBoolean("ok", false)) {
+                put("balance", balance.optDouble("totalBalance"))
                 put("balanceMode", "balance")
             } else {
                 put("balance", JSONObject.NULL)
                 put("balanceMode", "events")
+                put("error", balance.optString("error", "余额暂不可用"))
             }
             put("todayUsage", JSONObject.NULL)
         }
@@ -233,39 +192,31 @@ private class DaFeiYuHostView(
     }
 
     private fun fetchCurrentBalance(): BalanceResult {
-        val modelAndProvider = currentModelForWhale()
-            ?: return BalanceResult.error("NO_MODEL", "RikkaHub 当前没有选择聊天模型")
-        val provider = modelAndProvider.second
-
+        val pair = currentModelForWhale() ?: return BalanceResult.error("NO_MODEL", "RikkaHub 当前没有选择聊天模型")
+        val provider = pair.second
         val spec = when (provider) {
             is ProviderSetting.OpenAI -> openAiBalanceSpec(provider)
             is ProviderSetting.Google -> null
             is ProviderSetting.Claude -> null
-        } ?: return BalanceResult.error("NO_BALANCE_API", "当前提供商没有可用的余额接口")
-
+        } ?: return BalanceResult.error("NO_BALANCE_API", "当前提供商没有余额接口")
         if (spec.key.isBlank()) return BalanceResult.error("NO_API_KEY", "RikkaHub 当前提供商没有 API Key")
-
         return try {
             val request = Request.Builder()
                 .url(spec.url)
-                .header("Authorization", "Bearer ${spec.key}")
+                .header("Authorization", spec.auth.replace("{key}", spec.key))
                 .header("Accept", "application/json")
-                .get()
-                .build()
+                .get().build()
             client.newCall(request).execute().use { response ->
                 val body = response.body?.string().orEmpty()
-                if (!response.isSuccessful) {
-                    return BalanceResult.error("HTTP_${response.code}", "余额接口返回 HTTP ${response.code}")
-                }
-                val root = JSONObject(body)
-                val value = readPath(root, spec.path)
+                if (!response.isSuccessful) return BalanceResult.error("HTTP_${response.code}", "余额接口返回 HTTP ${response.code}")
+                val value = readPath(JSONObject(body), spec.path)
                     ?: return BalanceResult.error("BAD_RESPONSE", "余额接口返回中找不到余额字段")
-                val balance = when (value) {
+                val amount = when (value) {
                     is Number -> value.toDouble()
                     is String -> value.toDoubleOrNull()
                     else -> null
                 } ?: return BalanceResult.error("BAD_BALANCE", "余额字段不是数字")
-                BalanceResult.success(balance, spec.currency)
+                BalanceResult.success(amount * spec.scale, spec.currency)
             }
         } catch (e: Exception) {
             BalanceResult.error("NETWORK", e.message ?: "余额接口请求失败")
@@ -275,21 +226,12 @@ private class DaFeiYuHostView(
     private fun openAiBalanceSpec(provider: ProviderSetting.OpenAI): BalanceSpec? {
         val base = provider.baseUrl.trimEnd('/')
         val host = runCatching { Uri.parse(base).host.orEmpty().lowercase() }.getOrDefault("")
-        if (host.contains("deepseek.com")) {
-            return BalanceSpec(
-                url = "https://api.deepseek.com/user/balance",
-                path = "balance_infos[0].total_balance",
-                currency = "CNY",
-                key = provider.apiKey,
-            )
+        if (host == "api.deepseek.com" || host.endsWith(".deepseek.com")) {
+            return BalanceSpec("https://api.deepseek.com/user/balance", "balance_infos[0].total_balance", "CNY", provider.apiKey)
         }
         if (provider.balanceOption.enabled) {
-            return BalanceSpec(
-                url = base + "/" + provider.balanceOption.apiPath.trimStart('/'),
-                path = provider.balanceOption.resultPath,
-                currency = "CNY",
-                key = provider.apiKey,
-            )
+            val path = provider.balanceOption.apiPath.trimStart('/')
+            return BalanceSpec("$base/$path", provider.balanceOption.resultPath, "CNY", provider.apiKey)
         }
         return null
     }
@@ -297,13 +239,13 @@ private class DaFeiYuHostView(
     private fun readPath(root: JSONObject, path: String): Any? {
         if (path.isBlank()) return null
         var current: Any = root
-        val token = Regex("([^./\\[\\]]+)|\\[(\\d+)\\]")
-        for (match in token.findAll(path)) {
-            current = if (match.groupValues[1].isNotEmpty()) {
-                if (current !is JSONObject || !current.has(match.groupValues[1])) return null
-                current.get(match.groupValues[1])
+        val regex = Regex("([^./\\[\\]]+)|\\[(\\d+)\\]")
+        for (m in regex.findAll(path)) {
+            current = if (m.groupValues[1].isNotEmpty()) {
+                if (current !is JSONObject || !current.has(m.groupValues[1])) return null
+                current.get(m.groupValues[1])
             } else {
-                val index = match.groupValues[2].toIntOrNull() ?: return null
+                val index = m.groupValues[2].toIntOrNull() ?: return null
                 if (current !is JSONArray || index !in 0 until current.length()) return null
                 current.get(index)
             }
@@ -317,36 +259,24 @@ private data class BalanceSpec(
     val path: String,
     val currency: String,
     val key: String,
+    val auth: String = "Bearer {key}",
+    val scale: Double = 1.0,
 )
 
-private data class BalanceResult(
-    val json: String,
-    val at: Long = System.currentTimeMillis(),
-) {
+private data class BalanceResult(val json: String, val at: Long = System.currentTimeMillis()) {
     companion object {
-        fun success(balance: Double, currency: String) = BalanceResult(
-            JSONObject().apply {
-                put("ok", true)
-                put("totalBalance", balance)
-                put("currency", currency)
-                put("updatedAt", System.currentTimeMillis())
-            }.toString()
-        )
-
-        fun error(code: String, message: String) = BalanceResult(
-            JSONObject().apply {
-                put("ok", false)
-                put("code", code)
-                put("error", message)
-                put("transient", true)
-            }.toString()
-        )
+        fun success(balance: Double, currency: String) = BalanceResult(JSONObject().apply {
+            put("ok", true); put("totalBalance", balance); put("currency", currency); put("updatedAt", System.currentTimeMillis())
+        }.toString())
+        fun error(code: String, message: String) = BalanceResult(JSONObject().apply {
+            put("ok", false); put("code", code); put("error", message); put("transient", true)
+        }.toString())
     }
 }
 
 private class DaFeiYuBridge(private val host: DaFeiYuHostView) {
-    @JavascriptInterface fun setPanelOpen(value: Boolean) = host.setPanelOpen(value)
     @JavascriptInterface fun moveWidgetBy(dx: Float, dy: Float) = host.moveWidgetBy(dx, dy)
+    @JavascriptInterface fun setPanelOpen(@Suppress("UNUSED_PARAMETER") value: Boolean) = Unit
     @JavascriptInterface fun setInteractive(@Suppress("UNUSED_PARAMETER") value: Boolean) = Unit
     @JavascriptInterface fun setWidgetRect(@Suppress("UNUSED_PARAMETER") left: Float, @Suppress("UNUSED_PARAMETER") top: Float, @Suppress("UNUSED_PARAMETER") right: Float, @Suppress("UNUSED_PARAMETER") bottom: Float, @Suppress("UNUSED_PARAMETER") viewportWidth: Float, @Suppress("UNUSED_PARAMETER") viewportHeight: Float) = Unit
     @JavascriptInterface fun saveSizeConfig(@Suppress("UNUSED_PARAMETER") json: String) = Unit
@@ -361,14 +291,8 @@ private class DaFeiYuWebViewClient(private val host: DaFeiYuHostView) : WebViewC
         return when (request.url.path) {
             "/dsh-whale/image.png" -> asset("dafeiyu/DSniang1.png", "image/png")
             "/dsh-whale/rua.gif" -> asset("dafeiyu/rua.gif", "image/gif")
-            "/dsh-whale/sound/press.mp3" -> asset(
-                if (request.url.getQueryParameter("set") == "fx1") "dafeiyu/D1.mp3" else "dafeiyu/Ya1.mp3",
-                "audio/mpeg"
-            )
-            "/dsh-whale/sound/release.mp3" -> asset(
-                if (request.url.getQueryParameter("set") == "fx1") "dafeiyu/D2.mp3" else "dafeiyu/Ya2.mp3",
-                "audio/mpeg"
-            )
+            "/dsh-whale/sound/press.mp3" -> asset(if (request.url.getQueryParameter("set") == "fx1") "dafeiyu/D1.mp3" else "dafeiyu/Ya1.mp3", "audio/mpeg")
+            "/dsh-whale/sound/release.mp3" -> asset(if (request.url.getQueryParameter("set") == "fx1") "dafeiyu/D2.mp3" else "dafeiyu/Ya2.mp3", "audio/mpeg")
             "/dsh-whale/balance.json" -> json(host.balanceJson())
             "/dsh-whale/api-models.json" -> json(host.apiModelsJson())
             "/dsh-whale/size.json" -> json(DaFeiYuSettingsStore.json(host.context))
@@ -377,10 +301,6 @@ private class DaFeiYuWebViewClient(private val host: DaFeiYuHostView) : WebViewC
             else -> super.shouldInterceptRequest(view, request)
         }
     }
-
-    private fun asset(path: String, mime: String) =
-        WebResourceResponse(mime, null, host.context.assets.open(path))
-
-    private fun json(body: String) =
-        WebResourceResponse("application/json", "UTF-8", body.byteInputStream())
+    private fun asset(path: String, mime: String) = WebResourceResponse(mime, null, host.context.assets.open(path))
+    private fun json(body: String) = WebResourceResponse("application/json", "UTF-8", body.byteInputStream())
 }
