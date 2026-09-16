@@ -21,6 +21,7 @@ data class DaFeiYuSettings(
 
 object DaFeiYuSettingsStore {
     private const val PREFS = "dafeiyu_settings"
+    private const val PENDING_PANEL = "pendingPanel"
 
     fun load(context: Context): DaFeiYuSettings {
         val p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -74,6 +75,7 @@ object DaFeiYuSettingsStore {
 
     fun json(context: Context): String {
         val s = load(context)
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         return JSONObject().apply {
             put("scale", 1.0)
             put("sound", s.sound)
@@ -87,7 +89,19 @@ object DaFeiYuSettingsStore {
             put("scrollGapOn", s.scrollGapOn)
             put("scrollGapPx", s.scrollGapPx)
             put("menuBtnHide", true)
+            put("pendingPanel", prefs.getString(PENDING_PANEL, "") ?: "")
         }.toString()
+    }
+
+    fun requestPanel(context: Context, panel: String) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(PENDING_PANEL, panel).apply()
+    }
+
+    fun consumePanel(context: Context): String {
+        val p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val value = p.getString(PENDING_PANEL, "") ?: ""
+        if (value.isNotEmpty()) p.edit().remove(PENDING_PANEL).apply()
+        return value
     }
 
     fun usageJson(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
