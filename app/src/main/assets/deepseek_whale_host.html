@@ -33,6 +33,29 @@
         return nativeFetch(input,init);
       };
     })();
+
+    // Native Android touch forwarding sends synthetic pointer events into this WebView.
+    // The upstream widget intentionally has pointer-events:none on its root/image, so
+    // elementFromPoint() normally resolves to the transparent page underneath. For whale
+    // coordinates we retarget only those synthetic events to document, which preserves the
+    // upstream document-level pressDown/pressUp/whaleClick handlers (including squeeze,
+    // sound and bubble) without changing how menu controls are hit-tested.
+    (function(){
+      var nativeElementFromPoint = document.elementFromPoint.bind(document);
+      document.elementFromPoint = function(x,y){
+        var t = nativeElementFromPoint(x,y);
+        try {
+          var img = document.querySelector('.dshwv-img');
+          if (img) {
+            var r = img.getBoundingClientRect();
+            if (r.width > 0 && r.height > 0 && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) {
+              return document;
+            }
+          }
+        } catch(e) {}
+        return t;
+      };
+    })();
   </script>
   <script src="/dsh-whale/widget.js"></script>
 </body>
