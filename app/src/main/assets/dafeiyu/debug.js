@@ -38,13 +38,14 @@
     if(document.querySelector('.dshwv-embedded-settings-style'))return;
     var st=document.createElement('style');st.className='dshwv-embedded-settings-style';
     st.textContent=[
+      'html,body,#root{width:100%!important;height:100%!important;min-width:100vw!important;min-height:100vh!important;overflow:visible!important}',
       '.dshwv-root.dshwv-left{transform:none!important}',
       '.dshwv-root.dshwv-left .dshwv-img{transform:scaleX(-1)!important;transform-origin:right bottom!important}',
       '.dshwv-root.dshwv-left .dshwv-gif{transform:translate(-50%,-50%) scaleX(-1)!important}',
       '.dshwv-root.dshwv-left .dshwv-text{transform:translate(-50%,-50%)!important}',
       '.dshwv-menu-btn,.dshwv-menu-btn-visible{display:none!important;visibility:hidden!important;pointer-events:none!important}',
-      '.dshwv-bubmask,.dshwv-audiomask,.dshwv-confirmmask,.dshwv-cropmask,.dshwv-snapmask,.dshwv-resmask,.dshwv-usage-mask{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;max-width:none!important;max-height:none!important;box-sizing:border-box!important;align-items:center!important;justify-content:center!important;overflow:auto!important}',
-      '.dshwv-bubcard{width:min(440px,calc(100vw - 24px))!important;max-height:88vh!important;overflow-y:auto!important;overflow-x:hidden!important;box-sizing:border-box!important}'
+      '.dshwv-bubmask,.dshwv-audiomask,.dshwv-confirmmask,.dshwv-cropmask,.dshwv-snapmask,.dshwv-resmask,.dshwv-usage-mask{position:fixed!important;left:0!important;top:0!important;right:0!important;bottom:0!important;width:100vw!important;height:100vh!important;min-width:100vw!important;min-height:100vh!important;max-width:none!important;max-height:none!important;box-sizing:border-box!important;align-items:center!important;justify-content:center!important;overflow:auto!important;z-index:100000!important}',
+      '.dshwv-bubcard{width:min(440px,calc(100vw - 24px))!important;max-width:calc(100vw - 24px)!important;max-height:88vh!important;overflow-y:auto!important;overflow-x:hidden!important;box-sizing:border-box!important;flex:0 0 auto!important}'
     ].join('');document.head.appendChild(st);
   }
   function wait(){
