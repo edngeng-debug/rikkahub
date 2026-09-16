@@ -146,11 +146,22 @@ private fun SettingSwitch(title: String, summary: String, checked: Boolean, onCh
 private fun SettingChoice(title: String, value: String, choices: List<Pair<String, String>>, onChange: (String) -> Unit) {
     Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
         Text(title)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) { choices.forEach { (key, label) -> Button(onClick = { onChange(key) }, modifier = Modifier.weight(1f)) { Text(if (value == key) "✓ $label" else label) } }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            choices.forEach { (key, label) ->
+                Button(onClick = { onChange(key) }, modifier = Modifier.weight(1f)) {
+                    Text(if (value == key) "✓ $label" else label)
+                }
+            }
+        }
     }
 }
 
 @Composable
 private fun EditorButton(title: String, summary: String, onClick: () -> Unit) {
-    Button(onClick = onClick, modifier = Modifier.fillMaxWidth()) { Column(Modifier.fillMaxWidth()) { Text(title); Text(summary, style = MaterialTheme.typography.bodySmall) } }
+    Button(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.fillMaxWidth()) {
+            Text(title)
+            Text(summary, style = MaterialTheme.typography.bodySmall)
+        }
+    }
 }
