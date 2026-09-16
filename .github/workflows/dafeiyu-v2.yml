@@ -1,1 +1,157 @@
-# placeholder
+name: Build complete DaFeiYu
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/dafeiyu-v2.yml'
+      - 'app/src/main/**'
+      - 'app/build.gradle.kts'
+      - 'gradle/**'
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  build:
+    if: ${{ !contains(github.event.head_commit.message, '[dafeiyu-finished]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Sync RikkaHub upstream
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git remote add upstream https://github.com/rikkahub/rikkahub.git || true
+          git fetch upstream master --depth=200
+          if ! git merge-base --is-ancestor upstream/master HEAD; then
+            git merge upstream/master --no-edit -X ours
+          fi
+
+      - name: Import latest whale package
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/whale-pkg app/src/main/assets/dafeiyu
+          PKG="$(npm pack dsh-whale-widget@0.3.1 --silent)"
+          tar -xzf "$PKG" -C /tmp/whale-pkg
+          SRC=/tmp/whale-pkg/package/assets
+          test -f "$SRC/whale-widget.js"
+          cp -f "$SRC/whale-widget.js" app/src/main/assets/dafeiyu/whale-widget.js
+          for f in DSniang1.png DSniang02.png rua.gif Ya1.mp3 Ya2.mp3 D1.mp3 D2.mp3 minecraft-exp-orb.wav task-end-a.wav bubble-petpet.gif bubble-money1.gif; do
+            if test -f "$SRC/$f"; then cp -f "$SRC/$f" "app/src/main/assets/dafeiyu/$f"; fi
+          done
+
+      - name: Patch whale for RikkaHub embedded mode
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('app/src/main/assets/dafeiyu/whale-widget.js')
+          s = p.read_text(encoding='utf-8')
+
+          # 1/2: remove the press squash and all click bubbles in embedded RikkaHub mode.
+          marker = "\n/* RikkaHub embedded interaction patch */\n"
+          patch = r'''
+          (function(){
+            if (!window.__RIKKAHUB_DAFEIYU_EMBEDDED) return;
+            var style=document.createElement('style');
+            style.textContent=[
+              '.dshwv-body{transform:none!important;animation:none!important;transition:none!important}',
+              '.dshwv-bubble,.dshwv-bubble-open,.dshwv-text,.dshwv-gif{display:none!important;opacity:0!important;visibility:hidden!important}',
+              '.dshwv-menu-btn,.dshwv-menu{display:none!important}'
+            ].join('');
+            document.head.appendChild(style);
+          })();
+          '''
+
+          # Remove original bounds from drag movement. These exact expressions are part of the
+          # upstream 0.3.1 implementation; fail loudly if upstream changes them.
+          old1 = "state.left = clamp(drag.origLeft + dx, 0, Math.max(0, drag.vp.w - drag.w));\n        state.top = clamp(drag.origTop + dy, 0, Math.max(0, drag.vp.h - drag.h));"
+          new1 = "state.left = drag.origLeft + dx;\n        state.top = drag.origTop + dy;"
+          if old1 not in s:
+              raise SystemExit('drag move pattern missing')
+          s = s.replace(old1, new1, 1)
+
+          old2 = "const left = clamp(drag.origLeft + dx, 0, Math.max(0, drag.vp.w - drag.w));\n        const top = clamp(drag.origTop + dy, 0, Math.max(0, drag.vp.h - drag.h));"
+          new2 = "const left = drag.origLeft + dx;\n        const top = drag.origTop + dy;"
+          if old2 not in s:
+              raise SystemExit('drag release pattern missing')
+          s = s.replace(old2, new2, 1)
+
+          # Do not re-anchor/clamp after a drag. Keep the released coordinates exactly.
+          old3 = "state.left = left;\n        state.top = top;\n        settle();\n        saveConfig();"
+          new3 = "state.left = left;\n        state.top = top;\n        state.h = null;\n        state.v = null;\n        state.hOff = left;\n        state.vOff = top;\n        express();\n        saveConfig();"
+          if old3 not in s:
+              raise SystemExit('drag release settle pattern missing')
+          s = s.replace(old3, new3, 1)
+
+          # Once a position is free-floating, resize must not snap it back into bounds.
+          old4 = "window.addEventListener('resize', function () {\n        if (state.h === null && state.v === null && applyAnchorPos()) return;\n        settle();\n      });"
+          new4 = "window.addEventListener('resize', function () {\n        if (state.h === null && state.v === null) { express(); return; }\n        settle();\n      });"
+          if old4 not in s:
+              raise SystemExit('resize pattern missing')
+          s = s.replace(old4, new4, 1)
+
+          # Force the embedded mode to remain free-floating after the original config loader.
+          old5 = "loadConfig();\n    })();"
+          new5 = "loadConfig();\n      if (window.__RIKKAHUB_DAFEIYU_EMBEDDED) { state.h = null; state.v = null; express(); }\n    })();"
+          if old5 not in s:
+              raise SystemExit('init pattern missing')
+          s = s.replace(old5, new5, 1)
+
+          p.write_text(s + marker + patch, encoding='utf-8')
+
+      - name: Verify no size UI in embedded mode
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q '__RIKKAHUB_DAFEIYU_EMBEDDED' app/src/main/assets/dafeiyu/whale-widget.js
+          grep -q 'state.left = drag.origLeft + dx' app/src/main/assets/dafeiyu/whale-widget.js
+          grep -q 'dshwv-bubble,.dshwv-bubble-open' app/src/main/assets/dafeiyu/whale-widget.js
+
+      - name: Build ARM64 debug APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x ./gradlew
+          ./gradlew :app:assembleArm64Debug --stacktrace
+
+      - name: Upload ARM64 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: rikkahub-dafeiyu-complete-arm64
+          path: app/build/outputs/apk/debug/*arm64-v8a-debug.apk
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Commit synced sources and patched assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add app/src/main/assets/dafeiyu/whale-widget.js app/src/main/assets/dafeiyu/ app/src/main/java/me/rerere/rikkahub/whale app/src/main/java/me/rerere/rikkahub/ui/pages/extensions .github/workflows/dafeiyu-v2.yml
+          if git diff --cached --quiet; then
+            echo 'No source changes to commit.'
+          else
+            git commit -m '[dafeiyu-finished] sync upstream and finish interaction/settings fixes'
+            git push origin HEAD:master
+          fi
