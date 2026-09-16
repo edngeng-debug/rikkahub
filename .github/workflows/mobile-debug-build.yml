@@ -17,9 +17,6 @@ jobs:
 
       - name: Bundle upstream whale widget unchanged
         run: |
-          # The Android WebView host intercepts /dsh-whale/* and reads these
-          # resources from the APK root assets directory. Keep the upstream
-          # JavaScript, artwork and audio byte-for-byte unchanged.
           cp third_party/DeepSeek-Balance-Whale-Widget/assets/* app/src/main/assets/
           test -f app/src/main/assets/whale-widget.js
           test -f app/src/main/assets/DSniang1.png
@@ -106,3 +103,4 @@ jobs:
           retention-days: 14
 
 # Build verification trigger: keep this workflow on the feature branch.
+# 2026-09-16 interaction fix verification
