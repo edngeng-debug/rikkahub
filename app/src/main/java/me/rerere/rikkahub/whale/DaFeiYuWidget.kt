@@ -3,6 +3,7 @@ package me.rerere.rikkahub.whale
 import android.annotation.SuppressLint
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
+import android.os.Looper
 import android.view.Gravity
 import android.view.View
 import android.webkit.JavascriptInterface
@@ -17,6 +18,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import java.io.ByteArrayInputStream
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import kotlin.math.max
 import kotlin.math.roundToInt
 
@@ -114,22 +117,34 @@ private class DaFeiYuOverlay(
         }
     }
 
-    fun setInteractive(open: Boolean) {
+    private fun runOnUiAndWait(action: () -> Unit) {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            action()
+            return
+        }
+        val latch = CountDownLatch(1)
         hostView.post {
-            if (!popup.isShowing || open == interactive) return@post
+            try { action() } finally { latch.countDown() }
+        }
+        latch.await(800, TimeUnit.MILLISECONDS)
+    }
+
+    fun setInteractive(open: Boolean) {
+        if (!popup.isShowing || open == interactive) return
+        runOnUiAndWait {
+            if (!popup.isShowing || open == interactive) return@runOnUiAndWait
             if (open) {
                 val (sx, sy) = cssScale()
                 val screenRootLeft = popupX + lastRootRect[0] * sx
                 val screenRootTop = popupY + lastRootRect[1] * sy
                 interactive = true
+                // Expand before the original pointer-move handler is allowed to continue.
                 popup.update(0, 0, -1, -1)
                 val fullScaleX = hostView.width.toFloat() / lastViewport[0].coerceAtLeast(1f)
                 val fullScaleY = hostView.height.toFloat() / lastViewport[1].coerceAtLeast(1f)
                 val cssLeft = screenRootLeft / fullScaleX
                 val cssTop = screenRootTop / fullScaleY
-                webView.postDelayed({
-                    webView.evaluateJavascript("window.__dshwPinRoot&&window.__dshwPinRoot($cssLeft,$cssTop)", null)
-                }, 20)
+                webView.evaluateJavascript("window.__dshwPinRoot&&window.__dshwPinRoot($cssLeft,$cssTop)", null)
             } else {
                 val (sx, sy) = cssScale()
                 val rootLeftPx = lastRootRect[0] * sx
@@ -142,11 +157,9 @@ private class DaFeiYuOverlay(
                 popup.update(popupX, popupY, compactSize, compactSize)
                 val localScaleX = hostView.width.toFloat() / lastViewport[0].coerceAtLeast(1f)
                 val localScaleY = hostView.height.toFloat() / lastViewport[1].coerceAtLeast(1f)
-                val localLeft = (lastRootRect[0] - popupX / localScaleX).coerceAtLeast(0f)
-                val localTop = (lastRootRect[1] - popupY / localScaleY).coerceAtLeast(0f)
-                webView.postDelayed({
-                    webView.evaluateJavascript("window.__dshwPinRoot&&window.__dshwPinRoot($localLeft,$localTop)", null)
-                }, 20)
+                val localLeft = lastRootRect[0] - popupX / localScaleX
+                val localTop = lastRootRect[1] - popupY / localScaleY
+                webView.evaluateJavascript("window.__dshwPinRoot&&window.__dshwPinRoot($localLeft,$localTop)", null)
             }
         }
     }
@@ -165,21 +178,11 @@ private class DaFeiYuOverlay(
 }
 
 private class DaFeiYuBridge(private val overlay: DaFeiYuOverlay) {
-    @JavascriptInterface
-    fun setInteractive(value: Boolean) = overlay.setInteractive(value)
-
-    @JavascriptInterface
-    fun setWidgetRect(left: Float, top: Float, right: Float, bottom: Float, viewportWidth: Float, viewportHeight: Float) =
-        overlay.setWidgetRect(left, top, right, bottom, viewportWidth, viewportHeight)
-
-    @JavascriptInterface
-    fun saveSizeConfig(json: String) = Unit
-
-    @JavascriptInterface
-    fun saveUsageSettings(json: String) = overlay.saveUsageSettings(json)
-
-    @JavascriptInterface
-    fun consumePanelAction(): String = overlay.consumePanelAction()
+    @JavascriptInterface fun setInteractive(value: Boolean) = overlay.setInteractive(value)
+    @JavascriptInterface fun setWidgetRect(left: Float, top: Float, right: Float, bottom: Float, viewportWidth: Float, viewportHeight: Float) = overlay.setWidgetRect(left, top, right, bottom, viewportWidth, viewportHeight)
+    @JavascriptInterface fun saveSizeConfig(json: String) = Unit
+    @JavascriptInterface fun saveUsageSettings(json: String) = overlay.saveUsageSettings(json)
+    @JavascriptInterface fun consumePanelAction(): String = overlay.consumePanelAction()
 }
 
 private class DaFeiYuWebView(context: android.content.Context) : WebView(context)
@@ -196,12 +199,6 @@ private class DaFeiYuWebViewClient(private val context: android.content.Context)
         "/dsh-whale/last-turn.json" -> json("{\"seq\":0,\"cost\":0}")
         else -> super.shouldInterceptRequest(view, request)
     }
-
     private fun asset(path: String, mime: String) = WebResourceResponse(mime, null, context.assets.open(path))
-
-    private fun json(body: String) = WebResourceResponse(
-        "application/json",
-        "UTF-8",
-        ByteArrayInputStream(body.toByteArray(Charsets.UTF_8)),
-    )
+    private fun json(body: String) = WebResourceResponse("application/json", "UTF-8", ByteArrayInputStream(body.toByteArray(Charsets.UTF_8)))
 }
