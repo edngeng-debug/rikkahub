@@ -35,6 +35,7 @@ fun DaFeiYuSettingsPage() {
     val context = LocalContext.current
     var settings by remember { mutableStateOf(DaFeiYuSettingsStore.load(context)) }
     val usage = remember { mutableStateOf(readUsage(DaFeiYuSettingsStore.usageJson(context))) }
+    var showAdvanced by rememberSaveable { mutableStateOf(false) }
 
     fun save(next: DaFeiYuSettings) {
         settings = next
@@ -99,7 +100,7 @@ fun DaFeiYuSettingsPage() {
             }
             item { SettingSwitch("任务结束音效", "任务完成时播放选定的结束音效", usage.value.advanced.optBoolean("taskEndOn", false)) { saveAdvanced("taskEndOn", it) } }
             item {
-                SettingChoice("任务结束音效", usage.value.advanced.optString("taskEndSound", "exp_orb"), listOf("exp_orb" to "Minecraft·经验球", "duck" to "小黄鸭")) { saveAdvanced("taskEndSound", it) }
+                SettingChoice("任务结束音效", usage.value.advanced.optString("taskEndSound", "exp_orb"), listOf("exp_orb" to "Minecraft·经验球", "end_a" to "预设 A")) { saveAdvanced("taskEndSound", it) }
             }
 
             item { Text("提醒", style = MaterialTheme.typography.titleMedium) }
@@ -157,36 +158,31 @@ fun DaFeiYuSettingsPage() {
                     onValueChange = { saveAdvanced("roleName", it) },
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("角色名称") },
-                    supportingText = { Text("用于设置页和提示文案；图片资源仍使用内置资源") },
+                    supportingText = { Text("角色资源由完整编辑器管理") },
                     singleLine = true,
                 )
             }
-            item { SettingChoice("角色资源", usage.value.advanced.optString("roleAsset", "default"), listOf("default" to "默认角色", "duck" to "小黄鸭")) { saveAdvanced("roleAsset", it) } }
+            item { SettingChoice("角色资源", usage.value.advanced.optString("roleAsset", "default"), listOf("default" to "默认角色", "duck" to "小黄鱼")) { saveAdvanced("roleAsset", it) } }
 
-            item { Text("高级功能", style = MaterialTheme.typography.titleMedium) }
+            item { Text("完整功能", style = MaterialTheme.typography.titleMedium) }
             item {
-                InfoCard("拖动与位置", "大肥鱼现在直接嵌入 RikkaHub 聊天页，不使用 PopupWindow；空白区域会把触摸事件交还给聊天界面，键盘区域不会被整块 250dp 容器挡住。")
+                Button(onClick = { showAdvanced = true }, modifier = Modifier.fillMaxWidth()) {
+                    Text("打开完整大肥鱼编辑器")
+                }
             }
             item {
-                InfoCard("大小设置", "已按要求彻底移除。大肥鱼保持固定尺寸，不再提供大小滑块或尺寸持久化。")
+                InfoCard("完整编辑器包含", "自定义泡泡点击序列与模块排版、随机语句/随机图片、泡泡图库、角色资源、音频片段与音效组、余额预警、今日预算、每轮消耗提示、吸附设置以及模型/额度相关高级入口。")
             }
             item {
-                InfoCard("角色与资源管理", "可设置角色名称和当前内置角色资源。自定义文件导入入口保留为后续资源管理面板，当前不会再跳回失效的旧网页二级菜单。")
+                InfoCard("大小设置", "已按你的要求彻底移除。大肥鱼保持固定尺寸，不再提供大小滑块或尺寸持久化。")
             }
             item {
-                InfoCard("自定义泡泡", "现在可以直接编辑自定义泡泡文本并控制开关，不需要进入原网页三级菜单。")
-            }
-            item {
-                InfoCard("吸附与镜像", "吸附开关、吸附距离和左侧镜像已经迁移到本页。")
-            }
-            item {
-                InfoCard("音效管理", "音效开关、音量、套装和任务结束音效均已迁移到本页。")
-            }
-            item {
-                InfoCard("每轮消耗", "显示开关、自动关闭时间和提示文案已经迁移到本页。")
+                InfoCard("聊天页交互", "按动变扁效果和按动气泡已关闭；拖动使用逐帧合并的 1:1 指针位移，不再被 250dp 容器的边界钳制。")
             }
 
-            item { Text("当前版本重点保证：聊天输入、拖动、点击气泡、余额读取和所有设置入口不再依赖失效的网页三级菜单。", style = MaterialTheme.typography.bodySmall) }
+            item {
+                Text("高级设置通过本页的完整编辑器进入，不再依赖聊天页右下角的旧三级菜单。", style = MaterialTheme.typography.bodySmall)
+            }
 
             item {
                 Button(onClick = {
@@ -197,6 +193,10 @@ fun DaFeiYuSettingsPage() {
                 }, modifier = Modifier.fillMaxWidth()) { Text("恢复默认设置") }
             }
         }
+    }
+
+    if (showAdvanced) {
+        DaFeiYuAdvancedEditorDialog { showAdvanced = false }
     }
 }
 
