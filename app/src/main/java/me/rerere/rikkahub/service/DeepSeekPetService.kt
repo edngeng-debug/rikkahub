@@ -140,13 +140,9 @@ class DeepSeekPetService : Service() {
         webView?.loadDataWithBaseURL("https://rikkahub.local/", html, "text/html", "UTF-8", null)
     }
 
-    /**
-     * The Android overlay owns dragging. We intentionally do NOT forward pointerdown/move
-     * events to the upstream widget: that was the source of the squeeze animation, queued
-     * WebView events and the visible click bubble. A completed tap is forwarded as a click.
-     * Drag position is accumulated from raw MotionEvent deltas, so it remains 1:1 with the
-     * finger instead of being calculated through a fixed/clamped range.
-     */
+    /** Android owns dragging. No pointerdown/move is forwarded, so the upstream squeeze
+     * animation and its press-generated bubble cannot be triggered. Menu controls still
+     * receive a synthetic click when the tap actually lands on a control. */
     private fun onOverlayTouch(event: MotionEvent): Boolean {
         val p = params ?: return true
         when (event.actionMasked) {
@@ -166,26 +162,25 @@ class DeepSeekPetService : Service() {
                     p.y += (event.rawY - lastRawY).toInt()
                     lastRawX = event.rawX
                     lastRawY = event.rawY
-                    // Deliberately no clamp: the overlay may be dragged beyond every edge.
-                    windowManager?.updateViewLayout(window, p)
+                    // No clamp: dragging is not artificially limited at any edge.
+                    windowManager?.updateViewLayout(window ?: return true, p)
                 }
             }
             MotionEvent.ACTION_UP -> {
-                if (!moved) dispatchSyntheticClick(event.x, event.y)
+                if (!moved) dispatchControlClick(event.x, event.y)
             }
             MotionEvent.ACTION_CANCEL -> Unit
-        }
-        if (event.actionMasked != MotionEvent.ACTION_MOVE || moved) {
-            if (event.actionMasked == MotionEvent.ACTION_DOWN) return true
         }
         return true
     }
 
-    private fun dispatchSyntheticClick(x: Float, y: Float) {
+    private fun dispatchControlClick(x: Float, y: Float) {
         val js = """
             (function(){
-              var t=document.elementFromPoint($x,$y)||document.querySelector('.dshwv-root')||document.body;
-              t.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true,clientX:$x,clientY:$y}));
+              var t=document.elementFromPoint($x,$y);
+              if(!t) return;
+              var c=t.closest && t.closest('.dshwv-menu-btn,.dshwv-menu,button,input,select,option,label');
+              if(c) c.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true,clientX:$x,clientY:$y}));
             })();
         """.trimIndent()
         webView?.post { webView?.evaluateJavascript(js, null) }
@@ -335,9 +330,8 @@ class DeepSeekPetService : Service() {
         return sizeJson()
     }
 
-    private fun jsonStore(name: String, default: String = "{}"): String {
-        return getSharedPreferences(WHALE_PREFS, MODE_PRIVATE).getString(name, default) ?: default
-    }
+    private fun jsonStore(name: String, default: String = "{}"): String =
+        getSharedPreferences(WHALE_PREFS, MODE_PRIVATE).getString(name, default) ?: default
 
     private fun putJsonStore(name: String, body: String): String {
         val value = body.ifBlank { "{}" }
