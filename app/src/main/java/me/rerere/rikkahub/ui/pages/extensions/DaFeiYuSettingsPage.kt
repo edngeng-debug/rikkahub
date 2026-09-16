@@ -19,26 +19,47 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import me.rerere.rikkahub.ui.components.nav.BackButton
+import me.rerere.rikkahub.ui.context.LocalNavController
 import me.rerere.rikkahub.ui.theme.CustomColors
 import me.rerere.rikkahub.whale.DaFeiYuSettings
 import me.rerere.rikkahub.whale.DaFeiYuSettingsStore
 import org.json.JSONObject
+import java.util.Locale
 
 @Composable
 fun DaFeiYuSettingsPage() {
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
+    val navController = LocalNavController.current
     var settings by remember { mutableStateOf(DaFeiYuSettingsStore.load(context)) }
     val usage = remember { mutableStateOf(readUsage(DaFeiYuSettingsStore.usageJson(context))) }
 
-    fun save(next: DaFeiYuSettings) { settings = next; DaFeiYuSettingsStore.save(context, next) }
-    fun saveUsage(patch: JSONObject) { DaFeiYuSettingsStore.saveUsagePatch(context, patch.toString()); usage.value = readUsage(DaFeiYuSettingsStore.usageJson(context)) }
-    fun requestPanel(name: String) { DaFeiYuSettingsStore.requestPanel(context, name) }
+    fun save(next: DaFeiYuSettings) {
+        settings = next
+        DaFeiYuSettingsStore.save(context, next)
+    }
+
+    fun saveUsage(patch: JSONObject) {
+        DaFeiYuSettingsStore.saveUsagePatch(context, patch.toString())
+        usage.value = readUsage(DaFeiYuSettingsStore.usageJson(context))
+    }
+
+    fun requestPanel(name: String) {
+        DaFeiYuSettingsStore.requestPanel(context, name)
+        navController.popBackStack()
+    }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("大肥鱼") }, navigationIcon = { BackButton() }, colors = CustomColors.topBarColors) },
+        topBar = {
+            TopAppBar(
+                title = { Text("大肥鱼") },
+                navigationIcon = { BackButton() },
+                colors = CustomColors.topBarColors,
+            )
+        },
         containerColor = CustomColors.topBarColors.containerColor,
     ) { padding ->
         LazyColumn(
@@ -103,7 +124,7 @@ fun DaFeiYuSettingsPage() {
             item { EditorButton("吸附与镜像", "配置四边吸附和左侧镜像") { requestPanel("snap") } }
             item { EditorButton("每轮消耗提示", "编辑每轮提示内容、自动关闭和任务结束音效") { requestPanel("turn") } }
             item { EditorButton("音效管理", "打开原有音效资源编辑器") { requestPanel("audio") } }
-            item { Text("高级编辑器会在返回聊天页后打开；大肥鱼本体菜单已关闭。大小设置不再提供。", style = MaterialTheme.typography.bodySmall) }
+            item { Text("点击高级编辑器后会自动返回聊天页并打开对应面板；大肥鱼本体菜单已关闭。大小设置不再提供。", style = MaterialTheme.typography.bodySmall) }
 
             item {
                 Button(onClick = {
@@ -117,11 +138,15 @@ fun DaFeiYuSettingsPage() {
     }
 }
 
-private fun moneyText(v: Float): String = if (v % 1f == 0f) v.toInt().toString() else String.format("%.2f", v)
+private fun moneyText(v: Float): String = if (v % 1f == 0f) v.toInt().toString() else String.format(Locale.US, "%.2f", v)
 
 @Composable
 private fun NumberField(label: String, value: String, supporting: String, keyboardType: KeyboardType, onValueChange: (String) -> Unit) {
-    OutlinedTextField(value = value, onValueChange = onValueChange, modifier = Modifier.fillMaxWidth(), label = { Text(label) }, supportingText = { Text(supporting) }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = keyboardType))
+    var text by rememberSaveable(label) { mutableStateOf(value) }
+    LaunchedEffect(value) {
+        if (text.toFloatOrNull() == null && text.toLongOrNull() == null) text = value
+    }
+    OutlinedTextField(value = text, onValueChange = { text = it; onValueChange(it) }, modifier = Modifier.fillMaxWidth(), label = { Text(label) }, supportingText = { Text(supporting) }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = keyboardType))
 }
 
 private data class UsageUi(val alert: JSONObject, val budget: JSONObject, val alertOn: Boolean, val alertBelow: Float, val budgetOn: Boolean, val budgetAmount: Float, val autoClose: Boolean, val ttlSec: Int)
@@ -148,9 +173,7 @@ private fun SettingChoice(title: String, value: String, choices: List<Pair<Strin
         Text(title)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             choices.forEach { (key, label) ->
-                Button(onClick = { onChange(key) }, modifier = Modifier.weight(1f)) {
-                    Text(if (value == key) "✓ $label" else label)
-                }
+                Button(onClick = { onChange(key) }, modifier = Modifier.weight(1f)) { Text(if (value == key) "✓ $label" else label) }
             }
         }
     }
