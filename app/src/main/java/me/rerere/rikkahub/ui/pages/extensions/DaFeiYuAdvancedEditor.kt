@@ -9,17 +9,14 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import androidx.compose.ui.viewinterop.AndroidView
-import me.rerere.rikkahub.whale.DaFeiYuSettingsStore
-import org.json.JSONObject
 
 @Composable
 fun DaFeiYuAdvancedEditorDialog(onDismiss: () -> Unit) {
@@ -28,7 +25,7 @@ fun DaFeiYuAdvancedEditorDialog(onDismiss: () -> Unit) {
 
     Dialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = true),
+        properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
         Box(Modifier.fillMaxSize()) {
             AndroidView(
@@ -99,6 +96,8 @@ fun DaFeiYuAdvancedEditorDialog(onDismiss: () -> Unit) {
                             <script>
                               setTimeout(function(){
                                 try{
+                                  var rows=document.querySelectorAll('.dshwv-menu-row');
+                                  for(var i=0;i<rows.length;i++) if((rows[i].textContent||'').indexOf('大小')>=0) rows[i].style.display='none';
                                   var b=document.querySelector('.dshwv-menu');
                                   if(b){b.style.display='block';b.classList.add('dshwv-menu-open');}
                                 }catch(e){}
