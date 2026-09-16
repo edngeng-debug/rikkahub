@@ -13,6 +13,7 @@ import android.webkit.WebViewClient
 import android.widget.PopupWindow
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import java.io.ByteArrayInputStream
@@ -23,7 +24,7 @@ import java.io.ByteArrayInputStream
  */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-fun DaFeiYuWidget() {
+fun DaFeiYuWidget(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val hostView = LocalView.current
 
@@ -93,6 +94,10 @@ private class DaFeiYuOverlay(
         }
     }
 
+    fun saveUsageSettings(json: String) {
+        DaFeiYuSettingsStore.saveUsagePatch(context, json)
+    }
+
     fun dismiss() {
         webView.stopLoading()
         if (popup.isShowing) popup.dismiss()
@@ -111,13 +116,7 @@ private class DaFeiYuBridge(private val overlay: DaFeiYuOverlay) {
     fun saveSizeConfig(json: String) = Unit
 
     @JavascriptInterface
-    fun saveUsageSettings(json: String) {
-        overlay.context.saveUsagePatchCompat(json)
-    }
-}
-
-private fun android.content.Context.saveUsagePatchCompat(json: String) {
-    DaFeiYuSettingsStore.saveUsagePatch(this, json)
+    fun saveUsageSettings(json: String) = overlay.saveUsageSettings(json)
 }
 
 private class DaFeiYuWebView(context: android.content.Context) : WebView(context)
