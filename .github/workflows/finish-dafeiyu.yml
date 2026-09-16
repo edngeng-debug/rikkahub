@@ -10,14 +10,11 @@ on:
       - 'app/src/main/assets/dafeiyu/debug.js'
       - 'app/src/main/assets/dafeiyu/whale-widget.js'
       - '.github/workflows/finish-dafeiyu.yml'
-
 permissions:
   contents: write
-
 concurrency:
   group: dafeiyu-build
   cancel-in-progress: true
-
 jobs:
   build:
     if: ${{ !contains(github.event.head_commit.message, '[dafeiyu-finished]') }}
@@ -41,19 +38,12 @@ jobs:
         shell: python
         run: |
           from pathlib import Path
-          def replace_once(path, old, new, label):
-              p = Path(path); s = p.read_text()
-              if old not in s: raise SystemExit(f'missing patch anchor: {label}')
-              p.write_text(s.replace(old, new, 1))
           vm = Path('app/src/main/java/me/rerere/rikkahub/ui/pages/chat/ChatVM.kt')
           s = vm.read_text()
           s = s.replace('import com.google.firebase.analytics.FirebaseAnalytics\n', '')
           s = s.replace('    private val analytics: FirebaseAnalytics,\n', '')
-          s = s.replace('        analytics.logEvent("ai_send_message", null)\n\n', '')
-          s = s.replace('        analytics.logEvent("ai_edit_message", null)\n\n', '')
-          s = s.replace('        analytics.logEvent("ai_regenerate_at_message", null)\n', '')
-          s = s.replace('        analytics.logEvent("ai_tool_approval", null)\n', '')
-          s = s.replace('        analytics.logEvent("ai_tool_answer", null)\n', '')
+          for line in ['        analytics.logEvent("ai_send_message", null)\n\n','        analytics.logEvent("ai_edit_message", null)\n\n','        analytics.logEvent("ai_regenerate_at_message", null)\n','        analytics.logEvent("ai_tool_approval", null)\n','        analytics.logEvent("ai_tool_answer", null)\n']:
+              s = s.replace(line, '')
           vm.write_text(s)
           mod = Path('app/src/main/java/me/rerere/rikkahub/di/ViewModelModule.kt')
           mod.write_text(mod.read_text().replace('            analytics = get(),\n', ''))
@@ -67,6 +57,9 @@ jobs:
           if 'data object DaFeiYuSettings : Screen' not in s:
               s = s.replace('    @Serializable\n    data object Extensions : Screen\n', '    @Serializable\n    data object Extensions : Screen\n\n    @Serializable\n    data object DaFeiYuSettings : Screen\n')
           route.write_text(s)
+
+          # Full-screen transparent WebView: JS keeps the real viewport, so its
+          # native drag math has the actual screen size instead of a 250dp viewport.
           widget = Path('app/src/main/java/me/rerere/rikkahub/whale/DaFeiYuWidget.kt')
           s = widget.read_text()
           start = s.index('@SuppressLint("SetJavaScriptEnabled")\n@Composable\nfun DaFeiYuWidget')
@@ -74,30 +67,63 @@ jobs:
           new_composable = '''@SuppressLint("SetJavaScriptEnabled")\n@Composable\nfun DaFeiYuWidget(modifier: Modifier = Modifier) {\n    val context = LocalContext.current\n    val settings = LocalSettings.current\n    val client: OkHttpClient = koinInject()\n    val eventBus: AppEventBus = koinInject()\n    var host by remember { mutableStateOf<DaFeiYuHostView?>(null) }\n    AndroidView(\n        factory = { DaFeiYuHostView(context, client, settings).also { host = it } },\n        update = { it.updateSettings(settings) },\n        modifier = modifier.fillMaxSize(),\n    )\n    LaunchedEffect(eventBus) {\n        eventBus.events.collectLatest { event ->\n            if (event is AppEvent.ChatGenerationEnded) host?.refreshBalance()\n        }\n    }\n}\n'''
           s = s[:start] + new_composable + s[host_end:]
           s = s.replace('''    settings: Settings,\n    private val onMove: (Float, Float) -> Unit,\n) : FrameLayout(context) {''', '''    settings: Settings,\n) : FrameLayout(context) {''', 1)
-          s = s.replace('''    private val moveLock = Any()\n    private var pendingDx = 0f\n    private var pendingDy = 0f\n    private var moveScheduled = false\n''', '''    private var widgetX = 0f\n    private var widgetY = 0f\n    private var widgetReady = false\n    private val widgetSizePx get() = 250f * resources.displayMetrics.density\n''', 1)
-          s = s.replace('''        webView.layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)''', '''        webView.layoutParams = LayoutParams(widgetSizePx.toInt(), widgetSizePx.toInt()).apply {\n            leftMargin = 0\n            topMargin = 0\n        }''', 1)
-          old_touch = '''    override fun dispatchTouchEvent(event: android.view.MotionEvent): Boolean {\n        val action = event.actionMasked\n        if (action == android.view.MotionEvent.ACTION_DOWN) {\n            val size = width.toFloat().coerceAtLeast(1f)\n            val whaleStart = size * 0.4055f\n            val bubbleTop = size * 0.03f\n            val bubbleBottom = size * 0.43f\n            val bubbleLeft = size * 0.06f\n            val bubbleRight = size * 0.94f\n            val inWhale = event.x >= whaleStart && event.y >= whaleStart\n            val inBubble = event.y in bubbleTop..bubbleBottom && event.x in bubbleLeft..bubbleRight\n            if (!inWhale && !inBubble) return false\n        }\n        return super.dispatchTouchEvent(event)\n    }\n\n    fun updateSettings(value: Settings) { currentSettings = value }\n\n    /** Coalesce JS drag deltas to the next UI frame instead of queueing one Runnable per touch event. */\n    fun moveWidgetBy(dx: Float, dy: Float) {\n        synchronized(moveLock) {\n            pendingDx += dx\n            pendingDy += dy\n            if (moveScheduled) return\n            moveScheduled = true\n        }\n        postOnAnimation {\n            val delta = synchronized(moveLock) {\n                val value = pendingDx to pendingDy\n                pendingDx = 0f\n                pendingDy = 0f\n                moveScheduled = false\n                value\n            }\n            if (delta.first != 0f || delta.second != 0f) onMove(delta.first, delta.second)\n        }\n    }\n'''
-          new_touch = '''    override fun onAttachedToWindow() {\n        super.onAttachedToWindow()\n        post { ensureWidgetPosition() }\n    }\n    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {\n        super.onSizeChanged(w, h, oldw, oldh)\n        if (w > 0 && h > 0) post { ensureWidgetPosition() }\n    }\n    private fun ensureWidgetPosition() {\n        val size = widgetSizePx\n        val maxX = (width - size).coerceAtLeast(0f)\n        val maxY = (height - size).coerceAtLeast(0f)\n        if (!widgetReady) { widgetX = maxX; widgetY = maxY; widgetReady = true }\n        else { widgetX = widgetX.coerceIn(0f, maxX); widgetY = widgetY.coerceIn(0f, maxY) }\n        applyWidgetPosition()\n    }\n    private fun applyWidgetPosition() {\n        val lp = webView.layoutParams as LayoutParams\n        lp.leftMargin = widgetX.roundToInt()\n        lp.topMargin = widgetY.roundToInt()\n        webView.layoutParams = lp\n    }\n    fun updateSettings(value: Settings) { currentSettings = value }\n    fun moveWidgetBy(dx: Float, dy: Float) {\n        android.os.Handler(android.os.Looper.getMainLooper()).postAtFrontOfQueue {\n            val size = widgetSizePx\n            val maxX = (width - size).coerceAtLeast(0f)\n            val maxY = (height - size).coerceAtLeast(0f)\n            widgetX = (widgetX + dx).coerceIn(0f, maxX)\n            widgetY = (widgetY + dy).coerceIn(0f, maxY)\n            widgetReady = true\n            applyWidgetPosition()\n        }\n    }\n'''
-          if old_touch not in s: raise SystemExit('missing old movement block')
-          s = s.replace(old_touch, new_touch, 1)
-          s = s.replace('import org.koin.compose.koinInject\n', 'import org.koin.compose.koinInject\nimport kotlin.math.roundToInt\n', 1)
+          # Full-screen WebView; the parent decides whether a touch is inside the
+          # visible widget before allowing it into the WebView, so blank areas still pass through.
+          s = s.replace('''        webView.layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)''', '''        webView.layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)''', 1)
+          old_fields = '''    private var widgetX = 0f\n    private var widgetY = 0f\n    private var widgetReady = false\n    private val widgetSizePx get() = 250f * resources.displayMetrics.density\n'''
+          new_fields = '''    @Volatile private var widgetLeft = Float.POSITIVE_INFINITY\n    @Volatile private var widgetTop = Float.POSITIVE_INFINITY\n    @Volatile private var widgetRight = Float.NEGATIVE_INFINITY\n    @Volatile private var widgetBottom = Float.NEGATIVE_INFINITY\n    private var gestureInside = false\n'''
+          if old_fields in s: s = s.replace(old_fields, new_fields, 1)
+          else:
+              raise SystemExit('missing widget position fields')
+          start_touch = s.index('    override fun onAttachedToWindow()')
+          end_touch = s.index('\n    fun refreshBalance()', start_touch)
+          new_touch = '''    fun updateWidgetRect(left: Float, top: Float, right: Float, bottom: Float) {\n        widgetLeft = left\n        widgetTop = top\n        widgetRight = right\n        widgetBottom = bottom\n    }\n\n    override fun dispatchTouchEvent(event: android.view.MotionEvent): Boolean {\n        val x = event.x\n        val y = event.y\n        when (event.actionMasked) {\n            android.view.MotionEvent.ACTION_DOWN -> {\n                val inside = x >= widgetLeft && x <= widgetRight && y >= widgetTop && y <= widgetBottom\n                if (!inside) { gestureInside = false; return false }\n                gestureInside = true\n            }\n            android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {\n                if (!gestureInside) return false\n            }\n            else -> if (!gestureInside) return false\n        }\n        val handled = super.dispatchTouchEvent(event)\n        if (event.actionMasked == android.view.MotionEvent.ACTION_UP || event.actionMasked == android.view.MotionEvent.ACTION_CANCEL) gestureInside = false\n        return handled || gestureInside\n    }\n\n    fun updateSettings(value: Settings) { currentSettings = value }\n'''
+          s = s[:start_touch] + new_touch + s[end_touch:]
+          s = s.replace('''    @JavascriptInterface fun moveWidgetBy(dx: Float, dy: Float) = host.moveWidgetBy(dx, dy)''', '''    @JavascriptInterface fun moveWidgetBy(@Suppress("UNUSED_PARAMETER") dx: Float, @Suppress("UNUSED_PARAMETER") dy: Float) = Unit''')
+          s = s.replace('''    @JavascriptInterface fun setWidgetRect(@Suppress("UNUSED_PARAMETER") left: Float, @Suppress("UNUSED_PARAMETER") top: Float, @Suppress("UNUSED_PARAMETER") right: Float, @Suppress("UNUSED_PARAMETER") bottom: Float, @Suppress("UNUSED_PARAMETER") viewportWidth: Float, @Suppress("UNUSED_PARAMETER") viewportHeight: Float) = Unit''', '''    @JavascriptInterface fun setWidgetRect(left: Float, top: Float, right: Float, bottom: Float, @Suppress("UNUSED_PARAMETER") viewportWidth: Float, @Suppress("UNUSED_PARAMETER") viewportHeight: Float) = host.updateWidgetRect(left, top, right, bottom)''')
           widget.write_text(s)
+
+          # Embedded debug bridge no longer hijacks pointer events or moves the Android view.
+          debug = Path('app/src/main/assets/dafeiyu/debug.js')
+          debug.write_text(r'''/* RikkaHub embedded host: full-screen transparent WebView, native whale drag stays in JS. */
+(function(){
+  if(window.__dshwDebugUi)return;
+  window.__dshwDebugUi=true;
+  function sync(){
+    try{
+      var menu=document.querySelector('.dshwv-menu');
+      if(menu)menu.style.setProperty('display','none','important');
+      var buttons=document.querySelectorAll('.dshwv-menu-btn,.dshwv-menu-btn-visible');
+      for(var i=0;i<buttons.length;i++)buttons[i].style.setProperty('display','none','important');
+    }catch(e){}
+  }
+  setTimeout(sync,120);
+  setInterval(sync,1000);
+})();
+''')
+
+          # Interaction requirements:
+          # 1) remove squash/press animation in embedded mode;
+          # 2) tapping the whale no longer creates a bubble;
+          # 3/4) JS drag uses the full-screen WebView viewport and stays 1:1;
+          # 5) the Extensions page already exposes the full editor, which mirrors
+          # the original role/audio/bubble/resource/usage menus while hiding size.
           whale = Path('app/src/main/assets/dafeiyu/whale-widget.js')
           s = whale.read_text()
           s = s.replace("row1.appendChild(menuLabel('大小'))\nrow1.appendChild(scaleInput)\nrow1.appendChild(scaleNumber)", "row1.style.display = window.__RIKKAHUB_DAFEIYU_EMBEDDED ? 'none' : ''")
           s = s.replace("if (d && typeof d.scale === 'number' && d.scale >= MIN_SCALE - 0.1 && d.scale <= MAX_SCALE + 0.1) {", "if (!window.__RIKKAHUB_DAFEIYU_EMBEDDED && d && typeof d.scale === 'number' && d.scale >= MIN_SCALE - 0.1 && d.scale <= MAX_SCALE + 0.1) {")
           s = s.replace("  pressDown()\n  setWidgetCursor('grabbing')", "  if (!window.__RIKKAHUB_DAFEIYU_EMBEDDED) pressDown()\n  setWidgetCursor('grabbing')", 1)
           s = s.replace("  pressUp()\n  root.classList.remove('dshwv-dragging')", "  if (!window.__RIKKAHUB_DAFEIYU_EMBEDDED) pressUp()\n  root.classList.remove('dshwv-dragging')", 1)
-          old_move = '''  var dx = e.clientX - drag.startX\n  var dy = e.clientY - drag.startY\n  if (dx * dx + dy * dy >= CLICK_SQ) drag.moved = true\n  // Keep the pre-drag flip orientation while dragging (state.h/v stay as they\n  // were); on release endDrag() recomputes the anchors and settle() flips the\n  // class with a smooth transition instead of reverting instantly.\n  state.left = clamp(drag.origLeft + dx, 0, Math.max(0, drag.vp.w - drag.w))\n  state.top = clamp(drag.origTop + dy, 0, Math.max(0, drag.vp.h - drag.h))\n  express()'''
-          new_move = '''  var dx = e.clientX - drag.startX\n  var dy = e.clientY - drag.startY\n  if (dx * dx + dy * dy >= CLICK_SQ) drag.moved = true\n  if (window.__RIKKAHUB_DAFEIYU_EMBEDDED) {\n    var stepX = e.clientX - (drag.lastX == null ? drag.startX : drag.lastX)\n    var stepY = e.clientY - (drag.lastY == null ? drag.startY : drag.lastY)\n    drag.lastX = e.clientX; drag.lastY = e.clientY\n    try { if (window.RikkaDaFeiYu && RikkaDaFeiYu.moveWidgetBy) RikkaDaFeiYu.moveWidgetBy(stepX, stepY) } catch (err) {}\n    return\n  }\n  state.left = clamp(drag.origLeft + dx, 0, Math.max(0, drag.vp.w - drag.w))\n  state.top = clamp(drag.origTop + dy, 0, Math.max(0, drag.vp.h - drag.h))\n  express()'''
-          if old_move not in s: raise SystemExit('missing drag move block')
-          s = s.replace(old_move, new_move, 1)
-          s = s.replace("drag = { active: true, startX: e.clientX, startY: e.clientY, origLeft: rect.left, origTop: rect.top, w: rect.width, h: rect.height, moved: false, vp: vp }", "drag = { active: true, startX: e.clientX, startY: e.clientY, lastX: e.clientX, lastY: e.clientY, origLeft: rect.left, origTop: rect.top, w: rect.width, h: rect.height, moved: false, vp: vp }")
           old_end = '''  if (clickAllowed && !drag.moved) {\n    // 长按刚唤出菜单:这次抬手不再当作点击(避免顺带弹出余额泡)\n    if (longPressRecent()) return\n    whaleClick()\n    refresh(true)\n    return\n  }'''
-          new_end = '''  if (clickAllowed && !drag.moved) {\n    if (longPressRecent()) return\n    if (window.__RIKKAHUB_DAFEIYU_EMBEDDED) { refresh(true); return }\n    whaleClick()\n    refresh(true)\n    return\n  }\n  if (window.__RIKKAHUB_DAFEIYU_EMBEDDED) return'''
-          if old_end not in s: raise SystemExit('missing drag end block')
+          new_end = '''  if (clickAllowed && !drag.moved) {\n    if (longPressRecent()) return\n    if (window.__RIKKAHUB_DAFEIYU_EMBEDDED) { refresh(true); return }\n    whaleClick()\n    refresh(true)\n    return\n  }'''
+          if old_end not in s: raise SystemExit('missing click block')
           s = s.replace(old_end, new_end, 1)
+          old_express = '''function express() {\n  root.style.right = 'auto'\n  root.style.bottom = 'auto'\n  root.style.left = state.left + 'px'\n  root.style.top = state.top + 'px'\n  root.classList.toggle('dshwv-left', !!state.flip)\n}'''
+          new_express = '''function express() {\n  root.style.right = 'auto'\n  root.style.bottom = 'auto'\n  root.style.left = state.left + 'px'\n  root.style.top = state.top + 'px'\n  root.classList.toggle('dshwv-left', !!state.flip)\n  try {\n    if (window.RikkaDaFeiYu && RikkaDaFeiYu.setWidgetRect) {\n      var rr = root.getBoundingClientRect()\n      RikkaDaFeiYu.setWidgetRect(rr.left, rr.top, rr.right, rr.bottom, window.innerWidth || 0, window.innerHeight || 0)\n    }\n  } catch (err) {}\n}'''
+          if old_express not in s: raise SystemExit('missing express block')
+          s = s.replace(old_express, new_express, 1)
           whale.write_text(s)
+
       - name: Build debug APK
         run: |
           chmod +x ./gradlew
@@ -114,6 +140,6 @@ jobs:
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot].users.noreply.github.com'
-          git add app/src/main/java/me/rerere/rikkahub/ui/pages/chat/ChatVM.kt app/src/main/java/me/rerere/rikkahub/di/ViewModelModule.kt app/src/main/java/me/rerere/rikkahub/RouteActivity.kt app/src/main/java/me/rerere/rikkahub/whale/DaFeiYuWidget.kt app/src/main/assets/dafeiyu/whale-widget.js
-          git commit -m 'fix: finish 大肥鱼 drag and press behavior [dafeiyu-finished]' || exit 0
+          git add app/src/main/java/me/rerere/rikkahub/ui/pages/chat/ChatVM.kt app/src/main/java/me/rerere/rikkahub/di/ViewModelModule.kt app/src/main/java/me/rerere/rikkahub/RouteActivity.kt app/src/main/java/me/rerere/rikkahub/whale/DaFeiYuWidget.kt app/src/main/assets/dafeiyu/debug.js app/src/main/assets/dafeiyu/whale-widget.js
+          git commit -m 'fix: finish 大肥鱼 full-screen drag interaction [dafeiyu-finished]' || exit 0
           git push
