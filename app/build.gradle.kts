@@ -16,7 +16,11 @@ plugins {
 
 android {
     namespace = "me.rerere.rikkahub"
-    compileSdk = 37
+    compileSdk {
+        version = release(37) {
+            minorApiLevel = 2
+        }
+    }
 
     defaultConfig {
         applicationId = "me.rerere.rikkahub"
@@ -34,8 +38,6 @@ android {
 
     splits {
         abi {
-            // AppBundle tasks usually contain "bundle" in their name
-            //noinspection WrongGradleMethod
             val isBuildingBundle = gradle.startParameter.taskNames.any { it.lowercase().contains("bundle") }
             isEnable = !isBuildingBundle
             reset()
@@ -51,15 +53,11 @@ android {
 
             if (localPropertiesFile.exists()) {
                 localProperties.load(FileInputStream(localPropertiesFile))
-
                 val storeFilePath = localProperties.getProperty("storeFile")
                 val storePasswordValue = localProperties.getProperty("storePassword")
                 val keyAliasValue = localProperties.getProperty("keyAlias")
                 val keyPasswordValue = localProperties.getProperty("keyPassword")
-
-                if (storeFilePath != null && storePasswordValue != null &&
-                    keyAliasValue != null && keyPasswordValue != null
-                ) {
+                if (storeFilePath != null && storePasswordValue != null && keyAliasValue != null && keyPasswordValue != null) {
                     storeFile = file(storeFilePath)
                     storePassword = storePasswordValue
                     keyAlias = keyAliasValue
@@ -72,9 +70,7 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("release")
-            optimization {
-                enable = true
-            }
+            optimization { enable = true }
             buildConfigField("String", "VERSION_NAME", "\"${android.defaultConfig.versionName}\"")
             buildConfigField("String", "VERSION_CODE", "\"${android.defaultConfig.versionCode}\"")
         }
@@ -88,21 +84,11 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    buildFeatures {
-        compose = true
-        buildConfig = true
-    }
-    sourceSets {
-        getByName("androidTest").assets.srcDirs("$projectDir/schemas")
-    }
-    androidResources {
-        generateLocaleConfig = true
-    }
+    buildFeatures { compose = true; buildConfig = true }
+    sourceSets { getByName("androidTest").assets.srcDirs("$projectDir/schemas") }
+    androidResources { generateLocaleConfig = true }
     packaging {
-        jniLibs {
-            useLegacyPackaging = true
-            pickFirsts += "lib/*/libtermux.so"
-        }
+        jniLibs { useLegacyPackaging = true; pickFirsts += "lib/*/libtermux.so" }
     }
     tasks.withType<KotlinCompile>().configureEach {
         compilerOptions.optIn.add("androidx.compose.material3.ExperimentalMaterial3Api")
@@ -119,26 +105,16 @@ android {
     }
 }
 
-composeCompiler {
-    stabilityConfigurationFiles.add(
-        project.layout.projectDirectory.file("compose_compiler_config.conf")
-    )
-}
+composeCompiler { stabilityConfigurationFiles.add(project.layout.projectDirectory.file("compose_compiler_config.conf")) }
 
 tasks.register("buildAll") {
     dependsOn("assembleRelease", "bundleRelease")
     description = "Build both APK and AAB"
 }
 
-ksp {
-    arg("room.schemaLocation", "$projectDir/schemas")
-}
+ksp { arg("room.schemaLocation", "$projectDir/schemas") }
 
-kotlin {
-    compilerOptions {
-        jvmTarget.set(JvmTarget.JVM_17)
-    }
-}
+kotlin { compilerOptions { jvmTarget.set(JvmTarget.JVM_17) } }
 
 dependencies {
     implementation(libs.androidx.core.ktx)
@@ -149,8 +125,6 @@ dependencies {
     implementation(libs.androidx.profileinstaller)
     implementation(libs.termux.terminal.view)
     implementation(libs.guava.listenablefuture)
-
-    // Compose
     implementation(libs.androidx.activity.compose)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.ui)
@@ -159,126 +133,66 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation(libs.androidx.material3.adaptive)
     implementation(libs.androidx.material3.adaptive.layout)
-
-    // Navigation 3
     implementation(libs.androidx.navigation3.runtime)
     implementation(libs.androidx.navigation3.ui)
     implementation(libs.androidx.lifecycle.viewmodel.navigation3)
     implementation(libs.androidx.material3.adaptive.navigation3)
-
-    // Firebase
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.analytics)
     implementation(libs.firebase.crashlytics)
-
-    // DataStore
     implementation(libs.androidx.datastore.preferences)
-
-    // Image metadata extractor
     implementation(libs.metadata.extractor)
-
-    // Haze (background blur)
     implementation(libs.haze)
     implementation(libs.haze.blur)
     implementation(libs.haze.blur.material3)
-
-    // koin
     implementation(platform(libs.koin.bom))
     implementation(libs.koin.android)
     implementation(libs.koin.compose)
     implementation(libs.koin.androidx.workmanager)
-
-    // jetbrains markdown parser
     implementation(libs.jetbrains.markdown)
-
-    // okhttp
     implementation(libs.okhttp)
     implementation(libs.okhttp.sse)
     implementation(libs.retrofit)
     implementation(libs.retrofit.serialization.json)
-
-    // ktor client
     implementation(libs.ktor.client.core)
     implementation(libs.ktor.client.okhttp)
     implementation(libs.ktor.client.content.negotiation)
     implementation(libs.ktor.serialization.kotlinx.json)
-
-    // ucrop
     implementation(libs.ucrop)
-
-    // pebble (template engine)
     implementation(libs.pebble)
-
-    // java-diff-utils (unified diff)
     implementation(libs.diffutils)
-
-    // coil
     implementation(libs.coil.compose)
     implementation(libs.coil.gif)
     implementation(libs.coil.okhttp)
     implementation(libs.coil.svg)
     implementation(libs.coil.cache.control)
-
-    // serialization
     implementation(libs.kotlinx.serialization.json)
-
-    // YAML front matter
     implementation(libs.snakeyaml)
-
-    // zxing
     implementation(libs.zxing.core)
-
-    // quickie (qrcode scanner)
     implementation(libs.quickie.bundled)
     implementation(libs.barcode.scanning)
     implementation(libs.androidx.camera.core)
-
-    // Room
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     implementation(libs.androidx.room.paging)
     baselineProfile(project(":app:baselineprofile"))
     ksp(libs.androidx.room.compiler)
-
-    // Paging3
     implementation(libs.androidx.paging.runtime)
     implementation(libs.androidx.paging.compose)
-
-    // Apache Commons Text
     implementation(libs.commons.text)
-
-    // Toast (Sonner)
     implementation(libs.sonner)
-
-    // Reorderable
     implementation(libs.reorderable)
-
-    // lucide icons
     implementation(libs.lucide.icons)
     implementation(libs.huge.icons)
-
-    // image viewer
     implementation(libs.image.viewer)
-
-    // JLatexMath
     implementation(libs.jlatexmath)
     implementation(libs.jlatexmath.font.greek)
     implementation(libs.jlatexmath.font.cyrillic)
-
-    // mcp
     implementation(libs.modelcontextprotocol.kotlin.sdk)
-
-    // jmDNS
     implementation(libs.jmdns)
-
-    // SLF4J Android binding
     implementation(libs.slf4j.api)
     implementation(libs.slf4j.android)
-
-    // sqlite-android
     implementation(libs.sqlite.android)
-
-    // modules
     implementation(project(":ai"))
     implementation(project(":web"))
     implementation(project(":document"))
@@ -292,11 +206,6 @@ dependencies {
     implementation(project(":oauth"))
     implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar", "*.aar"))))
     implementation(kotlin("reflect"))
-
-    // Leak Canary
-    // debugImplementation(libs.leakcanary.android)
-
-    // tests
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
