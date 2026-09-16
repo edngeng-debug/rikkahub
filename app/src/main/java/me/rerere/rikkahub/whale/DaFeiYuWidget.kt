@@ -3,7 +3,6 @@ package me.rerere.rikkahub.whale
 import android.annotation.SuppressLint
 import android.graphics.Color
 import android.net.Uri
-import android.view.View
 import android.webkit.JavascriptInterface
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
@@ -11,6 +10,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import kotlinx.coroutines.flow.collectLatest
+import me.rerere.ai.provider.Model
 import me.rerere.ai.provider.ProviderSetting
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.event.AppEvent
@@ -53,9 +54,7 @@ fun DaFeiYuWidget(modifier: Modifier = Modifier) {
     var y by remember { mutableFloatStateOf(Float.NaN) }
     var host by remember { mutableStateOf<DaFeiYuHostView?>(null) }
 
-    BoxWithConstraints(
-        modifier = modifier.imePadding(),
-    ) {
+    BoxWithConstraints(modifier = modifier.imePadding()) {
         val density = androidx.compose.ui.platform.LocalDensity.current
         val compactPx = with(density) { COMPACT_DP.dp.toPx() }
         val maxXPx = with(density) { maxWidth.toPx() } - compactPx
@@ -91,7 +90,7 @@ fun DaFeiYuWidget(modifier: Modifier = Modifier) {
                 if (!panelOpen) it.layoutCompact()
             },
             modifier = if (panelOpen) {
-                Modifier.fillMaxSizeSafe()
+                Modifier.fillMaxSize()
             } else {
                 Modifier
                     .size(COMPACT_DP.dp)
@@ -108,8 +107,6 @@ fun DaFeiYuWidget(modifier: Modifier = Modifier) {
         }
     }
 }
-
-private fun Modifier.fillMaxSizeSafe(): Modifier = fillMaxSize()
 
 @SuppressLint("SetJavaScriptEnabled")
 private class DaFeiYuHostView(
@@ -166,12 +163,7 @@ private class DaFeiYuHostView(
 
     fun layoutCompact() {
         if (panelMode) return
-        post {
-            val lp = webView.layoutParams ?: LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
-            lp.width = LayoutParams.MATCH_PARENT
-            lp.height = LayoutParams.MATCH_PARENT
-            webView.layoutParams = lp
-        }
+        post { requestLayout() }
     }
 
     fun setPanelOpen(open: Boolean) {
@@ -209,11 +201,41 @@ private class DaFeiYuHostView(
         return result.json
     }
 
+    fun apiModelsJson(): String {
+        val modelAndProvider = currentModelForWhale()
+            ?: return JSONObject().put("ok", true).put("models", JSONArray()).put("templates", JSONArray()).toString()
+        val model = modelAndProvider.first
+        val provider = modelAndProvider.second
+        val balance = balanceJson()
+        val b = runCatching { JSONObject(balance) }.getOrDefault(JSONObject())
+        val item = JSONObject().apply {
+            put("id", "rikkahub:${model.id}")
+            put("name", model.name)
+            put("provider", provider.name)
+            put("builtin", false)
+            put("currency", b.optString("currency", "CNY"))
+            if (b.optBoolean("ok", false)) {
+                put("balance", b.optDouble("totalBalance", Double.NaN))
+                put("balanceMode", "balance")
+            } else {
+                put("balance", JSONObject.NULL)
+                put("balanceMode", "events")
+            }
+            put("todayUsage", JSONObject.NULL)
+        }
+        return JSONObject().put("ok", true).put("models", JSONArray().put(item)).put("templates", JSONArray()).toString()
+    }
+
+    private fun currentModelForWhale(): Pair<Model, ProviderSetting>? {
+        val model = currentSettings.getCurrentChatModel() ?: return null
+        val provider = model.findProvider(currentSettings.providers) ?: return null
+        return model to provider
+    }
+
     private fun fetchCurrentBalance(): BalanceResult {
-        val model = currentSettings.getCurrentChatModel()
+        val modelAndProvider = currentModelForWhale()
             ?: return BalanceResult.error("NO_MODEL", "RikkaHub 当前没有选择聊天模型")
-        val provider = model.findProvider(currentSettings.providers)
-            ?: return BalanceResult.error("NO_PROVIDER", "找不到当前模型对应的提供商")
+        val provider = modelAndProvider.second
 
         val spec = when (provider) {
             is ProviderSetting.OpenAI -> openAiBalanceSpec(provider)
@@ -361,32 +383,4 @@ private class DaFeiYuWebViewClient(private val host: DaFeiYuHostView) : WebViewC
 
     private fun json(body: String) =
         WebResourceResponse("application/json", "UTF-8", body.byteInputStream())
-}
-
-private fun DaFeiYuHostView.apiModelsJson(): String {
-    val model = currentModelForWhale() ?: return JSONObject().put("ok", true).put("models", JSONArray()).put("templates", JSONArray()).toString()
-    val balance = balanceJson()
-    val b = runCatching { JSONObject(balance) }.getOrDefault(JSONObject())
-    val item = JSONObject().apply {
-        put("id", "rikkahub:${model.first.id}")
-        put("name", model.first.name)
-        put("provider", model.second.name)
-        put("builtin", false)
-        put("currency", b.optString("currency", "CNY"))
-        if (b.optBoolean("ok", false)) {
-            put("balance", b.optDouble("totalBalance", Double.NaN))
-            put("balanceMode", "balance")
-        } else {
-            put("balance", JSONObject.NULL)
-            put("balanceMode", "events")
-        }
-        put("todayUsage", JSONObject.NULL)
-    }
-    return JSONObject().put("ok", true).put("models", JSONArray().put(item)).put("templates", JSONArray()).toString()
-}
-
-private fun DaFeiYuHostView.currentModelForWhale(): Pair<me.rerere.ai.provider.Model, ProviderSetting>? {
-    val model = currentSettings.getCurrentChatModel() ?: return null
-    val provider = model.findProvider(currentSettings.providers) ?: return null
-    return model to provider
 }
