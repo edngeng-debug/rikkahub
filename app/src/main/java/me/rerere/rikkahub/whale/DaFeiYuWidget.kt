@@ -186,8 +186,10 @@ private class DaFeiYuHostView(
     }
 
     private fun currentModelForWhale(): Pair<Model, ProviderSetting>? {
-        val model = currentSettings.getCurrentChatModel() ?: return null
-        val provider = model.findProvider(currentSettings.providers) ?: return null
+        val provider = currentSettings.providers.firstOrNull { provider ->
+            provider.models.any { model -> model.id == currentSettings.chatModelId }
+        } ?: return null
+        val model = provider.models.firstOrNull { it.id == currentSettings.chatModelId } ?: return null
         return model to provider
     }
 
