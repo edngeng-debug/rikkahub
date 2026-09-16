@@ -22,6 +22,8 @@
       if(menu)menu.style.setProperty('display','none','important');
       var buttons=document.querySelectorAll('.dshwv-menu-btn,.dshwv-menu-btn-visible');
       for(var i=0;i<buttons.length;i++)buttons[i].style.setProperty('display','none','important');
+      var bubbles=document.querySelectorAll('.dshwv-bubble,.dshwv-bubble-open,.dshwv-text,.dshwv-gif');
+      for(var j=0;j<bubbles.length;j++)bubbles[j].style.setProperty('display','none','important');
     }catch(e){}
   }
 
@@ -82,6 +84,7 @@
         'html,body,#root{width:100%!important;height:100%!important;margin:0!important;overflow:visible!important}',
         '.dshwv-root{--dshw-base:250px!important;width:250px!important;height:250px!important;left:0!important;top:0!important;right:auto!important;bottom:auto!important;transition:none!important;pointer-events:auto!important}',
         '.dshwv-body{transform:none!important;animation:none!important;transition:none!important;pointer-events:auto!important;touch-action:none!important}',
+        '.dshwv-bubble,.dshwv-bubble-open,.dshwv-text,.dshwv-gif{display:none!important;opacity:0!important;visibility:hidden!important}',
         '.dshwv-menu,.dshwv-menu-btn,.dshwv-menu-btn-visible{display:none!important}',
         '.dshwv-bubmask,.dshwv-audiomask,.dshwv-confirmmask,.dshwv-cropmask,.dshwv-snapmask,.dshwv-resmask,.dshwv-usage-mask{position:absolute!important;z-index:100001!important;box-sizing:border-box!important}',
         '.dshwv-rolelist,.dshwv-audiolist,.dshwv-custmenu,.dshwv-qedit,.dshwv-usagepanel,.dshwv-hintbox{position:absolute!important;z-index:100002!important;box-sizing:border-box!important}',
