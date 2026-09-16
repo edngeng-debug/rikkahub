@@ -92,6 +92,31 @@ jobs:
           grep -q '__RIKKAHUB_DAFEIYU_EMBEDDED' app/src/main/assets/dafeiyu/whale-widget.js
           grep -q 'dshwv-bubble,.dshwv-bubble-open' app/src/main/assets/dafeiyu/whale-widget.js
 
+      - name: Prepare debug Google Services stub
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p app/src/debug
+          cat > app/src/debug/google-services.json <<'JSON'
+          {
+            "project_info": {
+              "project_number": "0",
+              "project_id": "rikkahub-debug",
+              "storage_bucket": "rikkahub-debug.appspot.com"
+            },
+            "client": [
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "1:0:android:0000000000000000",
+                  "android_client_info": {"package_name": "me.rerere.rikkahub"}
+                },
+                "api_key": [{"current_key": "AIzaSyDUMMY_FOR_LOCAL_DEBUG_BUILD_ONLY"}]
+              }
+            ],
+            "configuration_version": "1"
+          }
+          JSON
+
       - name: Build debug APK
         shell: bash
         run: |
@@ -118,6 +143,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          rm -f app/src/debug/google-services.json
           git add app/src/main/assets/dafeiyu/whale-widget.js app/src/main/assets/dafeiyu/ app/src/main/java/me/rerere/rikkahub/whale app/src/main/java/me/rerere/rikkahub/ui/pages/extensions .github/workflows/dafeiyu-v2.yml
           if git diff --cached --quiet; then
             echo 'No source changes to commit.'
