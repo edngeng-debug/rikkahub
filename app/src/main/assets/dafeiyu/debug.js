@@ -23,7 +23,7 @@
     try{
       var open=!!document.querySelector('.dshwv-menu.dshwv-menu-open,.dshwv-root.dshwv-dragging');
       if(!open){
-        var n=document.querySelectorAll('.dshwv-bubmask,.dshwv-audiomask,.dshwv-confirmmask,.dshwv-cropmask,.dshwv-snapmask,.dshwv-resmask,.dshwv-usage-mask,.dshwv-qedit,.dshwv-usagepanel,.dshwv-rolelist,.dshwv-audiolist,.dshwv-custmenu,.dshwv-hintbox');
+        var n=document.querySelectorAll('.dshwv-menu,.dshwv-bubmask,.dshwv-audiomask,.dshwv-confirmmask,.dshwv-cropmask,.dshwv-snapmask,.dshwv-resmask,.dshwv-usage-mask,.dshwv-qedit,.dshwv-usagepanel,.dshwv-rolelist,.dshwv-audiolist,.dshwv-custmenu,.dshwv-hintbox');
         for(var i=0;i<n.length;i++){
           var e=n[i],c=getComputedStyle(e),r=e.getBoundingClientRect();
           if(c.display!=='none'&&c.visibility!=='hidden'&&r.width>1&&r.height>1){open=true;break}
@@ -43,7 +43,8 @@
       '.dshwv-root.dshwv-left .dshwv-img{transform:scaleX(-1)!important;transform-origin:right bottom!important}',
       '.dshwv-root.dshwv-left .dshwv-gif{transform:translate(-50%,-50%) scaleX(-1)!important}',
       '.dshwv-root.dshwv-left .dshwv-text{transform:translate(-50%,-50%)!important}',
-      '.dshwv-menu-btn,.dshwv-menu-btn-visible{display:none!important;visibility:hidden!important;pointer-events:none!important}',
+      '.dshwv-menu{position:fixed!important;left:auto!important;right:12px!important;top:auto!important;bottom:12px!important;width:min(400px,calc(100vw - 24px))!important;min-width:min(320px,calc(100vw - 24px))!important;max-width:calc(100vw - 24px)!important;max-height:82vh!important;overflow-y:auto!important;overflow-x:hidden!important;box-sizing:border-box!important;z-index:100000!important}',
+      '.dshwv-menu-row{flex-wrap:wrap!important;min-width:0!important}',
       '.dshwv-bubmask,.dshwv-audiomask,.dshwv-confirmmask,.dshwv-cropmask,.dshwv-snapmask,.dshwv-resmask,.dshwv-usage-mask{position:fixed!important;left:0!important;top:0!important;right:0!important;bottom:0!important;width:100vw!important;height:100vh!important;min-width:100vw!important;min-height:100vh!important;max-width:none!important;max-height:none!important;box-sizing:border-box!important;align-items:center!important;justify-content:center!important;overflow:auto!important;z-index:100000!important}',
       '.dshwv-bubcard{width:min(440px,calc(100vw - 24px))!important;max-width:calc(100vw - 24px)!important;max-height:88vh!important;overflow-y:auto!important;overflow-x:hidden!important;box-sizing:border-box!important;flex:0 0 auto!important}'
     ].join('');document.head.appendChild(st);
