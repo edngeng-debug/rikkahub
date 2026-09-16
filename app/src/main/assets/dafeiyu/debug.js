@@ -2,14 +2,13 @@
 (function(){
   if(window.__dshwDebugUi)return;
   window.__dshwDebugUi=true;
-  var timer=0,lastInteractive=null,lastRect=null;
+  var timer=0,lastInteractive=null,lastRect=null,dragArmed=false,startX=0,startY=0;
 
   function setInteractive(v){
     if(!window.RikkaDaFeiYu||lastInteractive===v)return;
     lastInteractive=v;
     try{window.RikkaDaFeiYu.setInteractive(v)}catch(e){}
   }
-
   function reportRect(){
     try{
       var r=document.querySelector('.dshwv-root');
@@ -20,88 +19,72 @@
       window.RikkaDaFeiYu.setWidgetRect.apply(window.RikkaDaFeiYu,next);
     }catch(e){}
   }
-
   function isVisible(el){
     if(!el)return false;
     var c=getComputedStyle(el),r=el.getBoundingClientRect();
     return c.display!=='none'&&c.visibility!=='hidden'&&r.width>1&&r.height>1;
   }
-
   function sync(){
     try{
       var menu=document.querySelector('.dshwv-menu');
       if(menu)menu.style.setProperty('display','none','important');
       var buttons=document.querySelectorAll('.dshwv-menu-btn,.dshwv-menu-btn-visible');
       for(var i=0;i<buttons.length;i++)buttons[i].style.setProperty('display','none','important');
-
       var open=!!document.querySelector('.dshwv-root.dshwv-dragging');
       if(!open){
         var n=document.querySelectorAll('.dshwv-bubmask,.dshwv-audiomask,.dshwv-confirmmask,.dshwv-cropmask,.dshwv-snapmask,.dshwv-resmask,.dshwv-usage-mask,.dshwv-qedit,.dshwv-usagepanel,.dshwv-rolelist,.dshwv-audiolist,.dshwv-custmenu,.dshwv-hintbox');
         for(var j=0;j<n.length;j++)if(isVisible(n[j])){open=true;break}
       }
       reportRect();
-      setInteractive(open);
+      if(open)setInteractive(true); else if(lastInteractive&&dragArmed===false)setInteractive(false);
     }catch(e){}
   }
-
   function schedule(){if(timer)return;timer=setTimeout(function(){timer=0;sync()},30)}
-
   function pinRoot(left,top){
-    var r=document.querySelector('.dshwv-root');
-    if(!r)return;
-    r.style.setProperty('left',left+'px','important');
-    r.style.setProperty('top',top+'px','important');
-    r.style.setProperty('right','auto','important');
-    r.style.setProperty('bottom','auto','important');
+    var r=document.querySelector('.dshwv-root'); if(!r)return;
+    r.style.setProperty('left',left+'px','important');r.style.setProperty('top',top+'px','important');
+    r.style.setProperty('right','auto','important');r.style.setProperty('bottom','auto','important');
     r.style.setProperty('transform-origin','left top','important');
   }
   window.__dshwPinRoot=pinRoot;
 
   function findMenuAction(text){
     var all=document.querySelectorAll('.dshwv-menu button,.dshwv-menu [role="button"],.dshwv-menu .dshwv-menu-row,.dshwv-menu a');
-    for(var i=0;i<all.length;i++){
-      var t=(all[i].innerText||all[i].textContent||'').trim();
-      if(t.indexOf(text)>=0)return all[i];
-    }
+    for(var i=0;i<all.length;i++){var t=(all[i].innerText||all[i].textContent||'').trim();if(t.indexOf(text)>=0)return all[i];}
     return null;
   }
-
   function openPanel(action){
     if(!action)return;
-    var map={bubble:'自定义泡泡',role:'角色/资源',snap:'吸附',turn:'每轮消耗提示',audio:'音效'};
-    var text=map[action]||action;
+    var map={bubble:'自定义泡泡',role:'角色/资源',snap:'吸附',turn:'每轮消耗提示',audio:'音效'},text=map[action]||action;
     var menu=document.querySelector('.dshwv-menu');
     if(menu)menu.style.setProperty('display','block','important');
     var e=findMenuAction(text);
-    if(e){
-      try{e.click()}catch(err){}
-      setTimeout(sync,80);
-      return;
-    }
+    if(e){try{e.click()}catch(err){};setTimeout(function(){sync();},100);return;}
     var btn=document.querySelector('.dshwv-menu-btn,.dshwv-menu-btn-visible');
-    if(btn){
-      try{btn.click()}catch(err2){}
-      setTimeout(function(){
-        var retry=findMenuAction(text);
-        if(retry){try{retry.click()}catch(err3){}}
-        setTimeout(sync,80);
-      },120);
-    }
+    if(btn){try{btn.click()}catch(err2){};setTimeout(function(){var retry=findMenuAction(text);if(retry){try{retry.click()}catch(err3){}}setTimeout(sync,100)},120)}
   }
-
   function consumePendingPanel(){
     if(!window.RikkaDaFeiYu)return;
-    var action='';
-    try{action=window.RikkaDaFeiYu.consumePanelAction()||''}catch(e){}
+    var action='';try{action=window.RikkaDaFeiYu.consumePanelAction()||''}catch(e){}
     if(action)setTimeout(function(){openPanel(action)},300);
   }
 
+  function point(e){return {x:(e.clientX!==undefined?e.clientX:(e.touches&&e.touches[0]?e.touches[0].clientX:0)),y:(e.clientY!==undefined?e.clientY:(e.touches&&e.touches[0]?e.touches[0].clientY:0))}}
+  function down(e){var p=point(e);dragArmed=true;startX=p.x;startY=p.y;}
+  function move(e){
+    if(!dragArmed||lastInteractive)return;
+    var p=point(e),dx=p.x-startX,dy=p.y-startY;
+    if(dx*dx+dy*dy<16)return;
+    reportRect();
+    /* 只有真正开始拖动才放大窗口，普通点击/长按不会再发生抽搐。 */
+    setInteractive(true);
+  }
+  function up(){dragArmed=false;setTimeout(sync,0)}
+
   function install(){
     if(document.querySelector('.dshwv-embedded-settings-style'))return;
-    var st=document.createElement('style');
-    st.className='dshwv-embedded-settings-style';
-    st.textContent=[
-      'html,body,#root{width:100%!important;height:100%!important;margin:0!important;overflow:visible!important}',
+    var st=document.createElement('style');st.className='dshwv-embedded-settings-style';
+    st.textContent=['html,body,#root{width:100%!important;height:100%!important;margin:0!important;overflow:visible!important}',
       '.dshwv-root{--dshw-base:250px!important;width:250px!important;height:250px!important}',
       '.dshwv-root.dshwv-left .dshwv-img{transform:scaleX(-1)!important;transform-origin:right bottom!important}',
       '.dshwv-root.dshwv-left .dshwv-gif{transform:translate(-50%,-50%) scaleX(-1)!important}',
@@ -109,37 +92,16 @@
       '.dshwv-menu,.dshwv-menu-btn,.dshwv-menu-btn-visible{display:none!important}',
       '.dshwv-bubmask,.dshwv-audiomask,.dshwv-confirmmask,.dshwv-cropmask,.dshwv-snapmask,.dshwv-resmask,.dshwv-usage-mask{position:fixed!important;left:0!important;top:0!important;right:0!important;bottom:0!important;width:100vw!important;height:100vh!important;min-width:100vw!important;min-height:100vh!important;max-width:none!important;max-height:none!important;box-sizing:border-box!important;align-items:center!important;justify-content:center!important;overflow:auto!important;z-index:100001!important}',
       '.dshwv-bubcard{width:min(440px,calc(100vw - 24px))!important;max-width:calc(100vw - 24px)!important;max-height:88vh!important;overflow-y:auto!important;overflow-x:hidden!important;box-sizing:border-box!important;flex:0 0 auto!important}',
-      '.dshwv-rolelist,.dshwv-audiolist,.dshwv-custmenu,.dshwv-hintbox,.dshwv-qedit,.dshwv-usagepanel{z-index:100002!important;max-width:calc(100vw - 24px)!important}'
-    ].join('');
+      '.dshwv-rolelist,.dshwv-audiolist,.dshwv-custmenu,.dshwv-hintbox,.dshwv-qedit,.dshwv-usagepanel{z-index:100002!important;max-width:calc(100vw - 24px)!important}'].join('');
     document.head.appendChild(st);
-
     var root=document.querySelector('.dshwv-root');
     if(root){
-      /* 在原挂件拖动处理前立即切换到全屏坐标系，避免第一次移动沿用右下角 PopupWindow 坐标。 */
-      var down=function(){
-        try{
-          reportRect();
-          setInteractive(true);
-        }catch(e){}
-      };
-      var up=function(){setTimeout(sync,0)};
-      root.addEventListener('pointerdown',down,true);
-      root.addEventListener('touchstart',down,{capture:true,passive:true});
-      root.addEventListener('mousedown',down,true);
-      document.addEventListener('pointerup',up,true);
-      document.addEventListener('touchend',up,{capture:true,passive:true});
-      document.addEventListener('mouseup',up,true);
+      root.addEventListener('pointerdown',down,true);root.addEventListener('pointermove',move,true);root.addEventListener('pointercancel',up,true);
+      root.addEventListener('touchstart',down,{capture:true,passive:true});root.addEventListener('touchmove',move,{capture:true,passive:true});root.addEventListener('touchcancel',up,{capture:true,passive:true});
+      root.addEventListener('mousedown',down,true);root.addEventListener('mousemove',move,true);
+      document.addEventListener('pointerup',up,true);document.addEventListener('touchend',up,{capture:true,passive:true});document.addEventListener('mouseup',up,true);
     }
   }
-
-  function wait(){
-    var r=document.querySelector('.dshwv-root');
-    if(!r){setTimeout(wait,120);return}
-    install();
-    consumePendingPanel();
-    sync();
-    try{new MutationObserver(schedule).observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['class','style','hidden']})}catch(e){}
-    setInterval(function(){consumePendingPanel();sync()},250);
-  }
+  function wait(){var r=document.querySelector('.dshwv-root');if(!r){setTimeout(wait,120);return}install();consumePendingPanel();sync();try{new MutationObserver(schedule).observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['class','style','hidden']})}catch(e){}setInterval(function(){consumePendingPanel();sync()},250)}
   wait();
 })();
