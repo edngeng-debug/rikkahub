@@ -2,7 +2,7 @@
 (function(){
   if(window.__dshwDebugUi)return;
   window.__dshwDebugUi=true;
-  var timer=0,lastInteractive=null,lastRect=null,pendingPanelDone=false;
+  var timer=0,lastInteractive=null,lastRect=null;
 
   function setInteractive(v){
     if(!window.RikkaDaFeiYu||lastInteractive===v)return;
@@ -68,27 +68,32 @@
 
   function openPanel(action){
     if(!action)return;
-    var old=document.querySelector('.dshwv-menu');
-    if(old)old.style.setProperty('display','block','important');
+    var map={bubble:'自定义泡泡',role:'角色/资源',snap:'吸附',turn:'每轮消耗提示',audio:'音效'};
+    var text=map[action]||action;
+    var menu=document.querySelector('.dshwv-menu');
+    if(menu)menu.style.setProperty('display','block','important');
+    var e=findMenuAction(text);
+    if(e){
+      try{e.click()}catch(err){}
+      setTimeout(sync,80);
+      return;
+    }
     var btn=document.querySelector('.dshwv-menu-btn,.dshwv-menu-btn-visible');
-    if(btn){try{btn.click()}catch(e){}}
-    setTimeout(function(){
-      var map={bubble:'自定义泡泡',role:'角色/资源',snap:'吸附',turn:'每轮消耗提示',audio:'音效'};
-      var e=findMenuAction(map[action]||action);
-      if(e){try{e.click()}catch(err){}}
+    if(btn){
+      try{btn.click()}catch(err2){}
       setTimeout(function(){
-        var m=document.querySelector('.dshwv-menu');
-        if(m&&!isVisible(m))m.style.setProperty('display','none','important');
-        sync();
-      },80);
-    },120);
+        var retry=findMenuAction(text);
+        if(retry){try{retry.click()}catch(err3){}}
+        setTimeout(sync,80);
+      },120);
+    }
   }
 
   function consumePendingPanel(){
-    if(pendingPanelDone||!window.RikkaDaFeiYu)return;
+    if(!window.RikkaDaFeiYu)return;
     var action='';
     try{action=window.RikkaDaFeiYu.consumePanelAction()||''}catch(e){}
-    if(action){pendingPanelDone=true;setTimeout(function(){openPanel(action)},500)}
+    if(action)setTimeout(function(){openPanel(action)},300);
   }
 
   function install(){
@@ -110,7 +115,7 @@
 
     var root=document.querySelector('.dshwv-root');
     if(root){
-      /* 必须在原挂件的拖动处理前立即切换到全屏窗口，否则第一次移动时坐标系仍是右下角小 PopupWindow。 */
+      /* 在原挂件拖动处理前立即切换到全屏坐标系，避免第一次移动沿用右下角 PopupWindow 坐标。 */
       var down=function(){
         try{
           reportRect();
