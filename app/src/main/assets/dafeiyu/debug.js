@@ -39,7 +39,6 @@
         var n=document.querySelectorAll('.dshwv-bubmask,.dshwv-audiomask,.dshwv-confirmmask,.dshwv-cropmask,.dshwv-snapmask,.dshwv-resmask,.dshwv-usage-mask,.dshwv-qedit,.dshwv-usagepanel,.dshwv-rolelist,.dshwv-audiolist,.dshwv-custmenu,.dshwv-hintbox');
         for(var j=0;j<n.length;j++)if(isVisible(n[j])){open=true;break}
       }
-      /* 先记录拖动后的坐标，再缩回原来的 PopupWindow。 */
       reportRect();
       setInteractive(open);
     }catch(e){}
@@ -69,7 +68,6 @@
 
   function openPanel(action){
     if(!action)return;
-    /* 菜单本身对用户隐藏，但程序化入口仍保留给扩展页中的高级编辑器。 */
     var old=document.querySelector('.dshwv-menu');
     if(old)old.style.setProperty('display','block','important');
     var btn=document.querySelector('.dshwv-menu-btn,.dshwv-menu-btn-visible');
@@ -112,7 +110,13 @@
 
     var root=document.querySelector('.dshwv-root');
     if(root){
-      var down=function(){schedule()};
+      /* 必须在原挂件的拖动处理前立即切换到全屏窗口，否则第一次移动时坐标系仍是右下角小 PopupWindow。 */
+      var down=function(){
+        try{
+          reportRect();
+          setInteractive(true);
+        }catch(e){}
+      };
       var up=function(){setTimeout(sync,0)};
       root.addEventListener('pointerdown',down,true);
       root.addEventListener('touchstart',down,{capture:true,passive:true});
