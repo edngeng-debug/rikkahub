@@ -105,7 +105,6 @@ private class DaFeiYuOverlay(
             lastRootRect = floatArrayOf(left, top, right, bottom)
             lastViewport = floatArrayOf(viewportWidth, viewportHeight)
             if (!popup.isShowing || interactive || viewportWidth <= 1f || viewportHeight <= 1f) return@post
-
             val (sx, sy) = cssScale()
             val rootWidth = ((right - left) * sx).coerceAtLeast(1f)
             val rootHeight = ((bottom - top) * sy).coerceAtLeast(1f)
@@ -152,9 +151,7 @@ private class DaFeiYuOverlay(
         }
     }
 
-    fun requestPanel(panel: String) {
-        DaFeiYuSettingsStore.requestPanel(context, panel)
-    }
+    fun consumePanelAction(): String = DaFeiYuSettingsStore.consumePanel(context)
 
     fun saveUsageSettings(json: String) {
         DaFeiYuSettingsStore.saveUsagePatch(context, json)
@@ -182,7 +179,7 @@ private class DaFeiYuBridge(private val overlay: DaFeiYuOverlay) {
     fun saveUsageSettings(json: String) = overlay.saveUsageSettings(json)
 
     @JavascriptInterface
-    fun consumePanelAction(): String = DaFeiYuSettingsStore.consumePanel(overlay.context)
+    fun consumePanelAction(): String = overlay.consumePanelAction()
 }
 
 private class DaFeiYuWebView(context: android.content.Context) : WebView(context)
