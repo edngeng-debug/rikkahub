@@ -66,7 +66,7 @@ fun DaFeiYuSettingsPage() {
             item { SettingChoice("音效套装", settings.soundSet, listOf("duck" to "小黄鸭", "fx1" to "音效 1")) { save(settings.copy(soundSet = it)) } }
 
             item { Text("用量与计费", style = androidx.compose.material3.MaterialTheme.typography.titleMedium) }
-            item { SettingChoice("用量模式", settings.usageMode, listOf("ledger" to "记账", "daily" to "每日", "off" to "关闭")) { save(settings.copy(usageMode = it)) } }
+            item { SettingChoice("用量模式", settings.usageMode, listOf("ledger" to "记账", "token" to "实时·令牌", "off" to "关闭")) { save(settings.copy(usageMode = it)) } }
             item { SettingChoice("峰谷文案", settings.peakMode, listOf("default" to "默认", "auto" to "自动", "off" to "关闭")) { save(settings.copy(peakMode = it)) } }
             item { SettingSwitch("显示回合扣费", "在气泡中显示本回合费用", settings.turnCostOn) { save(settings.copy(turnCostOn = it)) } }
             item {
