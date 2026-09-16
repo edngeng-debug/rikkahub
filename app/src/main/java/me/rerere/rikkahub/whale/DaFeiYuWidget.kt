@@ -42,10 +42,6 @@ import kotlin.math.roundToInt
 private const val COMPACT_DP = 250
 private const val BALANCE_CACHE_MS = 30_000L
 
-/**
- * 大肥鱼直接作为 RikkaHub 聊天页面的一层 Compose 内容嵌入。
- * 不使用 PopupWindow、不使用全屏 WebView、不使用 imePadding，避免遮挡输入法和聊天输入区。
- */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun DaFeiYuWidget(modifier: Modifier = Modifier) {
@@ -62,31 +58,23 @@ fun DaFeiYuWidget(modifier: Modifier = Modifier) {
         val sizePx = with(density) { COMPACT_DP.dp.toPx() }
         val maxX = (maxWidth.value * density.density - sizePx).coerceAtLeast(0f)
         val maxY = (maxHeight.value * density.density - sizePx).coerceAtLeast(0f)
-
         LaunchedEffect(maxWidth, maxHeight) {
             x = if (x.isNaN()) maxX else x.coerceIn(0f, maxX)
             y = if (y.isNaN()) maxY else y.coerceIn(0f, maxY)
         }
-
         AndroidView(
             factory = {
-                DaFeiYuHostView(
-                    context = context,
-                    client = client,
-                    settings = settings,
-                    onMove = { dx, dy ->
-                        x = (if (x.isNaN()) maxX else x + dx).coerceIn(0f, maxX)
-                        y = (if (y.isNaN()) maxY else y + dy).coerceIn(0f, maxY)
-                    },
-                ).also { host = it }
+                DaFeiYuHostView(context, client, settings) { dx, dy ->
+                    x = (if (x.isNaN()) maxX else x + dx).coerceIn(0f, maxX)
+                    y = (if (y.isNaN()) maxY else y + dy).coerceIn(0f, maxY)
+                }.also { host = it }
             },
             update = { it.updateSettings(settings) },
-            modifier = Modifier
-                .size(COMPACT_DP.dp)
-                .offset { IntOffset(x.coerceAtLeast(0f).roundToInt(), y.coerceAtLeast(0f).roundToInt()) },
+            modifier = Modifier.size(COMPACT_DP.dp).offset {
+                IntOffset(x.coerceAtLeast(0f).roundToInt(), y.coerceAtLeast(0f).roundToInt())
+            },
         )
     }
-
     LaunchedEffect(eventBus) {
         eventBus.events.collectLatest { event ->
             if (event is AppEvent.ChatGenerationEnded) host?.refreshBalance()
@@ -124,7 +112,6 @@ private class DaFeiYuHostView(
         webView.addJavascriptInterface(DaFeiYuBridge(this), "RikkaDaFeiYu")
         webView.webViewClient = DaFeiYuWebViewClient(this)
         addView(webView)
-
         val whale = context.assets.open("dafeiyu/whale-widget.js").bufferedReader().use { it.readText() }
         val debug = context.assets.open("dafeiyu/debug.js").bufferedReader().use { it.readText() }
         val html = """
@@ -139,16 +126,13 @@ private class DaFeiYuHostView(
     }
 
     fun updateSettings(value: Settings) { currentSettings = value }
-
     fun moveWidgetBy(dx: Float, dy: Float) { post { onMove(dx, dy) } }
-
     fun refreshBalance() {
         post {
             cachedBalance = null
             webView.evaluateJavascript("try{typeof refresh==='function'&&refresh(true)}catch(e){}", null)
         }
     }
-
     fun consumePanelAction(): String = DaFeiYuSettingsStore.consumePanel(context)
     fun saveUsageSettings(json: String) = DaFeiYuSettingsStore.saveUsagePatch(context, json)
 
@@ -161,14 +145,13 @@ private class DaFeiYuHostView(
     }
 
     fun apiModelsJson(): String {
-        val pair = currentModelForWhale()
-            ?: return JSONObject().put("ok", true).put("models", JSONArray()).put("templates", JSONArray()).toString()
+        val pair = currentModelForWhale() ?: return JSONObject().put("ok", true).put("models", JSONArray()).put("templates", JSONArray()).toString()
         val model = pair.first
         val provider = pair.second
         val balance = JSONObject(balanceJson())
         val item = JSONObject().apply {
             put("id", "rikkahub:${model.id}")
-            put("name", model.name)
+            put("name", model.displayName)
             put("provider", provider.name)
             put("builtin", false)
             put("currency", balance.optString("currency", "CNY"))
@@ -203,16 +186,13 @@ private class DaFeiYuHostView(
         } ?: return BalanceResult.error("NO_BALANCE_API", "当前提供商没有余额接口")
         if (spec.key.isBlank()) return BalanceResult.error("NO_API_KEY", "RikkaHub 当前提供商没有 API Key")
         return try {
-            val request = Request.Builder()
-                .url(spec.url)
+            val request = Request.Builder().url(spec.url)
                 .header("Authorization", spec.auth.replace("{key}", spec.key))
-                .header("Accept", "application/json")
-                .get().build()
+                .header("Accept", "application/json").get().build()
             client.newCall(request).execute().use { response ->
                 val body = response.body?.string().orEmpty()
                 if (!response.isSuccessful) return BalanceResult.error("HTTP_${response.code}", "余额接口返回 HTTP ${response.code}")
-                val value = readPath(JSONObject(body), spec.path)
-                    ?: return BalanceResult.error("BAD_RESPONSE", "余额接口返回中找不到余额字段")
+                val value = readPath(JSONObject(body), spec.path) ?: return BalanceResult.error("BAD_RESPONSE", "余额接口返回中找不到余额字段")
                 val amount = when (value) {
                     is Number -> value.toDouble()
                     is String -> value.toDoubleOrNull()
@@ -256,15 +236,7 @@ private class DaFeiYuHostView(
     }
 }
 
-private data class BalanceSpec(
-    val url: String,
-    val path: String,
-    val currency: String,
-    val key: String,
-    val auth: String = "Bearer {key}",
-    val scale: Double = 1.0,
-)
-
+private data class BalanceSpec(val url: String, val path: String, val currency: String, val key: String, val auth: String = "Bearer {key}", val scale: Double = 1.0)
 private data class BalanceResult(val json: String, val at: Long = System.currentTimeMillis()) {
     companion object {
         fun success(balance: Double, currency: String) = BalanceResult(JSONObject().apply {
@@ -287,21 +259,18 @@ private class DaFeiYuBridge(private val host: DaFeiYuHostView) {
 }
 
 private class DaFeiYuWebView(context: android.content.Context) : WebView(context)
-
 private class DaFeiYuWebViewClient(private val host: DaFeiYuHostView) : WebViewClient() {
-    override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest): WebResourceResponse? {
-        return when (request.url.path) {
-            "/dsh-whale/image.png" -> asset("dafeiyu/DSniang1.png", "image/png")
-            "/dsh-whale/rua.gif" -> asset("dafeiyu/rua.gif", "image/gif")
-            "/dsh-whale/sound/press.mp3" -> asset(if (request.url.getQueryParameter("set") == "fx1") "dafeiyu/D1.mp3" else "dafeiyu/Ya1.mp3", "audio/mpeg")
-            "/dsh-whale/sound/release.mp3" -> asset(if (request.url.getQueryParameter("set") == "fx1") "dafeiyu/D2.mp3" else "dafeiyu/Ya2.mp3", "audio/mpeg")
-            "/dsh-whale/balance.json" -> json(host.balanceJson())
-            "/dsh-whale/api-models.json" -> json(host.apiModelsJson())
-            "/dsh-whale/size.json" -> json(DaFeiYuSettingsStore.json(host.context))
-            "/dsh-whale/usage-settings.json" -> json(DaFeiYuSettingsStore.usageJson(host.context))
-            "/dsh-whale/last-turn.json" -> json("{\"ok\":true,\"seq\":0,\"turn\":null,\"amount\":0,\"tokens\":0,\"ts\":0}")
-            else -> super.shouldInterceptRequest(view, request)
-        }
+    override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest): WebResourceResponse? = when (request.url.path) {
+        "/dsh-whale/image.png" -> asset("dafeiyu/DSniang1.png", "image/png")
+        "/dsh-whale/rua.gif" -> asset("dafeiyu/rua.gif", "image/gif")
+        "/dsh-whale/sound/press.mp3" -> asset(if (request.url.getQueryParameter("set") == "fx1") "dafeiyu/D1.mp3" else "dafeiyu/Ya1.mp3", "audio/mpeg")
+        "/dsh-whale/sound/release.mp3" -> asset(if (request.url.getQueryParameter("set") == "fx1") "dafeiyu/D2.mp3" else "dafeiyu/Ya2.mp3", "audio/mpeg")
+        "/dsh-whale/balance.json" -> json(host.balanceJson())
+        "/dsh-whale/api-models.json" -> json(host.apiModelsJson())
+        "/dsh-whale/size.json" -> json(DaFeiYuSettingsStore.json(host.context))
+        "/dsh-whale/usage-settings.json" -> json(DaFeiYuSettingsStore.usageJson(host.context))
+        "/dsh-whale/last-turn.json" -> json("{\"ok\":true,\"seq\":0,\"turn\":null,\"amount\":0,\"tokens\":0,\"ts\":0}")
+        else -> super.shouldInterceptRequest(view, request)
     }
     private fun asset(path: String, mime: String) = WebResourceResponse(mime, null, host.context.assets.open(path))
     private fun json(body: String) = WebResourceResponse("application/json", "UTF-8", body.byteInputStream())
