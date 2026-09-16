@@ -56,7 +56,7 @@ fun DaFeiYuSettingsPage() {
                 SettingChoice(
                     "音效套装",
                     settings.soundSet,
-                    listOf("duck" to "鸭子", "default" to "默认"),
+                    listOf("duck" to "鸭子", "fx1" to "音效 1"),
                 ) { save(settings.copy(soundSet = it)) }
             }
 
